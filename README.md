@@ -12,6 +12,10 @@ SQLite file, no cloud services.
 ![Web dashboard](image/dashboard.png)
 *The dashboard in dark mode — home, insights, budgets and merchant views (personal amounts redacted).*
 
+UI heavily inspired by [Cashew](https://github.com/jameskokoska/Cashew) by
+James Kokoska — a lovely open-source budget app; this project began life as a
+self-hosted replacement for it (see the CSV importer below).
+
 ## Highlights
 
 - **Frictionless capture** — text the bot `kopi 2.80` and it's logged, categorised
