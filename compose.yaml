@@ -1,0 +1,48 @@
+name: expense-tracker
+
+services:
+  expense-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: expense-tracker:local
+    container_name: expense-bot
+    hostname: expense-bot
+    restart: unless-stopped
+    command: ["python", "-m", "app.bot"]
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Singapore
+      DB_PATH: /app/data/expenses.db
+    volumes:
+      # SQLite DB (+ WAL/SHM). Point at any host dir you want to keep/back up.
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "app.bot"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  expense-web:
+    image: expense-tracker:local      # reuses the image built by expense-bot
+    container_name: expense-web
+    hostname: expense-web
+    restart: unless-stopped
+    depends_on:
+      - expense-bot
+    command: ["uvicorn", "app.web:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      TZ: Asia/Singapore
+      DB_PATH: /app/data/expenses.db
+    ports:
+      - "8085:8000"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

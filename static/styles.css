@@ -1,0 +1,399 @@
+/* Cashew-style Material You skin — Material purple, light+dark via tokens.
+   Mirrors the approved mockup (cashew-mockup.html artifact, 2026-07-10).
+   v4 polish 2026-07-12: Nunito display face, hero gradient, token-derived
+   viz colors, motion. */
+@font-face{font-family:'Nunito';font-weight:700;font-display:swap;
+  src:url(/vendor/nunito-700.woff2) format('woff2')}
+@font-face{font-family:'Nunito';font-weight:800;font-display:swap;
+  src:url(/vendor/nunito-800.woff2) format('woff2')}
+:root{
+  --primary:#6750A4; --on-primary:#FFFFFF;
+  --primary-container:#EADDFF; --on-primary-container:#21005D;
+  --bg:#F7F4FC; --surface:#FFFFFF; --surface-2:#F0ECF8; --surface-3:#E8E1F3;
+  --on-surface:#1C1B21; --on-surface-2:#5B5666; --outline:#CBC4D6;
+  --good:#3E9B4F; --warn:#D98E1F; --bad:#D9483B;
+  --hero-a:#6750A4; --hero-b:#7E63C4;
+  --font-display:'Nunito',Roboto,"Segoe UI",system-ui,sans-serif;
+  --shadow:0 1px 2px rgba(27,29,38,.08),0 4px 14px rgba(27,29,38,.08);
+  --c-food-bg:#FFE3C2;          --c-food-fg:#8A4B00;
+  --c-groceries-bg:#D6F0CE;     --c-groceries-fg:#2E6B24;
+  --c-transport-bg:#CFE4FF;     --c-transport-fg:#1B5CA8;
+  --c-shopping-bg:#FFD9E8;      --c-shopping-fg:#A82562;
+  --c-bills-bg:#C9F0EA;         --c-bills-fg:#0F6B5F;
+  --c-health-bg:#FFD9D4;        --c-health-fg:#A83A2C;
+  --c-entertainment-bg:#E5DBFF; --c-entertainment-fg:#5E3FA6;
+  --c-travel-bg:#F5E9BE;        --c-travel-fg:#7A6210;
+  --c-other-bg:#E4E6EE;         --c-other-fg:#4C5265;
+}
+/* KEEP IN SYNC: this block appears twice — auto (media query) + manual override */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --primary:#D0BCFF; --on-primary:#381E72;
+    --primary-container:#4F378B; --on-primary-container:#EADDFF;
+    --bg:#161322; --surface:#1F1B2E; --surface-2:#27223B; --surface-3:#302947;
+    --on-surface:#E8E6F2; --on-surface-2:#A29DB8; --outline:#4C4566;
+    --good:#7CC98A; --warn:#E8B45E; --bad:#EF8A80;
+    --hero-a:#D0BCFF; --hero-b:#B79BFF;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
+    --c-food-bg:#4A3012;          --c-food-fg:#FFD9A8;
+    --c-groceries-bg:#24401F;     --c-groceries-fg:#B7E3AA;
+    --c-transport-bg:#1B3552;     --c-transport-fg:#A9CDFF;
+    --c-shopping-bg:#4A2135;      --c-shopping-fg:#FFB3D2;
+    --c-bills-bg:#16403A;         --c-bills-fg:#9FE0D6;
+    --c-health-bg:#47231F;        --c-health-fg:#FFB4A8;
+    --c-entertainment-bg:#322550; --c-entertainment-fg:#CDBBFF;
+    --c-travel-bg:#453A12;        --c-travel-fg:#EBD98A;
+    --c-other-bg:#2A2D3A;         --c-other-fg:#C3C8D9;
+  }
+}
+/* KEEP IN SYNC: this block appears twice — auto (media query) + manual override */
+:root[data-theme="dark"]{
+  --primary:#D0BCFF; --on-primary:#381E72;
+  --primary-container:#4F378B; --on-primary-container:#EADDFF;
+  --bg:#161322; --surface:#1F1B2E; --surface-2:#27223B; --surface-3:#302947;
+  --on-surface:#E8E6F2; --on-surface-2:#A29DB8; --outline:#4C4566;
+  --good:#7CC98A; --warn:#E8B45E; --bad:#EF8A80;
+  --hero-a:#D0BCFF; --hero-b:#B79BFF;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
+  --c-food-bg:#4A3012;          --c-food-fg:#FFD9A8;
+  --c-groceries-bg:#24401F;     --c-groceries-fg:#B7E3AA;
+  --c-transport-bg:#1B3552;     --c-transport-fg:#A9CDFF;
+  --c-shopping-bg:#4A2135;      --c-shopping-fg:#FFB3D2;
+  --c-bills-bg:#16403A;         --c-bills-fg:#9FE0D6;
+  --c-health-bg:#47231F;        --c-health-fg:#FFB4A8;
+  --c-entertainment-bg:#322550; --c-entertainment-fg:#CDBBFF;
+  --c-travel-bg:#453A12;        --c-travel-fg:#EBD98A;
+  --c-other-bg:#2A2D3A;         --c-other-fg:#C3C8D9;
+}
+.greet{position:relative}
+.greet .theme-btn{position:absolute;top:12px;right:2px;font-size:20px}
+#desk-head .theme-btn{font-size:20px}
+
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--on-surface);
+  font:15px/1.5 Roboto,"Segoe UI",system-ui,-apple-system,sans-serif;}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;padding:0}
+input,select{font:inherit;color:var(--on-surface);background:var(--surface);
+  border:1px solid var(--outline);border-radius:14px;padding:10px 14px;width:100%;outline:none}
+input:focus,select:focus{border-color:var(--primary)}
+.money{font-variant-numeric:tabular-nums}
+.sub{color:var(--on-surface-2);font-size:13px}
+.flex{flex:1}
+.hidden{display:none !important}
+
+#app{max-width:520px;margin:0 auto;min-height:100%;position:relative;
+  padding:16px 16px 96px}
+.view{display:none;flex-direction:column;gap:14px}
+.view.active{display:flex}
+
+/* headers — display face carries the personality */
+.greet h1,.bar h1{font-family:var(--font-display);font-size:24px;font-weight:800;margin:0}
+.greet{padding:8px 2px 0}
+.bar{display:flex;align-items:center;gap:10px;padding:8px 2px 0}
+.section-title{font-family:var(--font-display);font-weight:700;font-size:15px;margin-top:6px;
+  display:flex;align-items:center;justify-content:space-between}
+#desk-head{display:none}
+.linkish{color:var(--primary);font-weight:600;font-size:13px}
+/* Show more — pill button shared by the tx list + merchant cards */
+.more{display:block;width:fit-content;margin:10px auto 2px;padding:9px 22px;
+  border-radius:999px;background:var(--primary-container);color:var(--on-primary-container);
+  font-weight:700;font-size:13px;box-shadow:var(--shadow);
+  transition:transform .12s ease,filter .12s ease}
+.more:hover{transform:translateY(-1px);filter:brightness(1.04)}
+.more:active{transform:scale(.96)}
+
+/* cards */
+.card{background:var(--surface);border-radius:20px;padding:16px;box-shadow:var(--shadow)}
+/* hero: the one card that spends the boldness */
+.spent-card{background:linear-gradient(135deg,var(--hero-a),var(--hero-b));color:var(--on-primary)}
+.spent-card .sub{color:var(--on-primary);opacity:.85}
+.spent-head{display:flex;align-items:center;gap:8px}
+.spent-head span{flex:1;text-align:center}
+.mnav{color:var(--on-primary);opacity:.8;font-size:20px;line-height:1;
+  width:28px;height:28px;border-radius:50%}
+.mnav:active{background:rgba(255,255,255,.18)}
+.spent-card .big{font-family:var(--font-display);font-size:40px;font-weight:800;margin:2px 0 8px}
+/* Chart.js sizes its render surface from the canvas's PARENT — give each chart a
+   fixed-height wrapper and leave the canvas unstyled. Pinning the canvas itself with
+   !important squashes the bitmap AND breaks tooltip hit-testing (mouse y maps into
+   render space that no longer matches display space). The fixed wrapper height also
+   prevents the ResizeObserver grow-forever loop with maintainAspectRatio:false. */
+.chart-wrap{position:relative}
+#spark-wrap{height:56px}
+#cashflow-wrap{height:220px}
+#rhythm-wrap{height:140px}
+#yearbars-wrap{height:260px}
+
+/* budget pills on home */
+.pills{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.pill{background:var(--surface);border-radius:16px;padding:10px 12px;min-width:128px;
+  box-shadow:var(--shadow);flex:0 0 auto}
+.pill .name{font-size:12px;font-weight:700;display:flex;gap:6px;align-items:center}
+.pill .nums{font-size:11px;color:var(--on-surface-2);margin-top:6px}
+/* year-view + weekly-rhythm pills filter their bar chart per category */
+#yr-cats .pill,#rhythm-cats .pill{cursor:pointer;border:1px solid transparent;
+  transition:transform .12s ease,border-color .12s ease}
+#yr-cats .pill:hover,#rhythm-cats .pill:hover{transform:translateY(-2px)}
+#yr-cats .pill.sel,#rhythm-cats .pill.sel{border-color:var(--primary)}
+#rhythm-cats{margin-top:10px}
+
+/* transaction rows */
+.txlist{display:flex;flex-direction:column;gap:8px}
+.tx{display:flex;align-items:center;gap:12px;background:var(--surface);
+  border-radius:16px;padding:10px 12px;box-shadow:var(--shadow);cursor:pointer}
+.tx .ico{width:40px;height:40px;border-radius:13px;display:flex;align-items:center;
+  justify-content:center;font-size:19px;flex:0 0 auto}
+.tx .mid{flex:1;min-width:0}
+.tx .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx .s{font-size:12px;color:var(--on-surface-2)}
+.tx .amt{font-weight:700;white-space:nowrap}
+.auto{font-size:10px;background:var(--surface-3);color:var(--on-surface-2);
+  border-radius:6px;padding:1px 5px;margin-left:4px}
+.day{display:flex;justify-content:space-between;font-size:12px;font-weight:700;
+  color:var(--on-surface-2);padding:8px 4px 0;text-transform:uppercase;letter-spacing:.04em}
+.empty{color:var(--on-surface-2);text-align:center;padding:24px 0}
+
+/* chips */
+.chips{display:flex;gap:8px;overflow-x:auto}
+.chip{background:var(--surface);border:1px solid var(--outline);border-radius:999px;
+  padding:6px 14px;font-size:13px;font-weight:600;flex:0 0 auto}
+.chip.sel{background:var(--primary-container);color:var(--on-primary-container);
+  border-color:transparent}
+#min-amt{width:96px;flex:0 0 auto;padding:6px 12px;border-radius:999px;font-size:13px}
+
+/* budgets */
+.bcard{background:var(--surface);border-radius:18px;padding:14px 16px;
+  box-shadow:var(--shadow);margin-bottom:10px}
+.bcard .top{display:flex;justify-content:space-between;align-items:center;
+  font-weight:700;font-size:14px}
+.bcard .name{display:flex;align-items:center;gap:8px}
+.dot{width:26px;height:26px;border-radius:9px;display:inline-flex;
+  align-items:center;justify-content:center;font-size:14px}
+.bar-track{background:var(--surface-3);border-radius:999px;height:10px;margin:10px 0 8px;overflow:hidden}
+.bar-fill{height:100%;border-radius:999px;background:var(--primary);
+  transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.bar-fill.warn{background:var(--warn)}
+.bar-fill.over{background:var(--bad)}
+.bcard .nums{display:flex;justify-content:space-between;font-size:12px;color:var(--on-surface-2)}
+.budget-form .row{display:flex;gap:8px;margin-top:10px}
+.budget-form select{flex:1.4}
+.budget-form input{flex:1}
+.budget-form button{flex:0 0 auto}
+
+/* category colors (class = cat-<lowercased category>) */
+.cat-food .ico,.dot.cat-food{background:var(--c-food-bg);color:var(--c-food-fg)}
+.cat-groceries .ico,.dot.cat-groceries{background:var(--c-groceries-bg);color:var(--c-groceries-fg)}
+.cat-transport .ico,.dot.cat-transport{background:var(--c-transport-bg);color:var(--c-transport-fg)}
+.cat-shopping .ico,.dot.cat-shopping{background:var(--c-shopping-bg);color:var(--c-shopping-fg)}
+.cat-bills .ico,.dot.cat-bills{background:var(--c-bills-bg);color:var(--c-bills-fg)}
+.cat-health .ico,.dot.cat-health{background:var(--c-health-bg);color:var(--c-health-fg)}
+.cat-entertainment .ico,.dot.cat-entertainment{background:var(--c-entertainment-bg);color:var(--c-entertainment-fg)}
+.cat-travel .ico,.dot.cat-travel{background:var(--c-travel-bg);color:var(--c-travel-fg)}
+.cat-other .ico,.dot.cat-other{background:var(--c-other-bg);color:var(--c-other-fg)}
+
+/* add flow */
+/* ponytail: Nunito only on hero/display numbers — list .money stays on the
+   system stack, whose tabular-nums keep day totals aligned */
+.amount-display{font-family:var(--font-display);font-size:44px;font-weight:800;
+  text-align:center;padding:12px 0}
+.cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cat-pick{background:var(--surface);border:1px solid var(--outline);border-radius:14px;
+  padding:8px 4px;font-size:12px;font-weight:600;display:flex;flex-direction:column;
+  gap:4px;align-items:center}
+.cat-pick .dot{width:30px;height:30px;border-radius:10px;font-size:15px}
+.cat-pick.sel{border-color:var(--primary);background:var(--primary-container);
+  color:var(--on-primary-container)}
+.pad{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pad button{background:var(--surface);border-radius:16px;padding:16px 0;font-size:20px;
+  font-weight:600;box-shadow:var(--shadow)}
+.pad .ok{background:var(--primary);color:var(--on-primary);grid-row:span 2}
+.pad .span2{grid-column:span 2}
+
+/* nav + fab */
+#nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);
+  display:flex;justify-content:space-around;padding:8px 0 max(10px,env(safe-area-inset-bottom));
+  box-shadow:0 -2px 12px rgba(0,0,0,.08);z-index:20}
+#nav button{display:flex;flex-direction:column;align-items:center;gap:2px;
+  font-size:11px;font-weight:600;color:var(--on-surface-2);flex:1 1 0;min-width:0}
+#nav button span{font-size:18px;line-height:1}
+#nav button.active{color:var(--primary)}
+#fab{position:fixed;right:calc(50% - 250px);bottom:84px;width:58px;height:58px;
+  border-radius:19px;background:var(--primary);color:var(--on-primary);font-size:28px;
+  box-shadow:var(--shadow);z-index:21}
+@media (max-width:552px){#fab{right:18px}}
+
+/* overlays */
+.overlay{position:fixed;inset:0;background:var(--bg);z-index:30;overflow-y:auto;
+  padding:16px}
+.overlay .view{display:flex;max-width:520px;margin:0 auto}
+#sheet-overlay{background:rgba(0,0,0,.45);display:flex;align-items:flex-end;
+  justify-content:center;padding:0}
+.sheet{background:var(--surface);border-radius:24px 24px 0 0;padding:20px 16px 28px;
+  width:100%;max-width:520px;display:flex;flex-direction:column;gap:12px}
+.sheet label{font-size:12px;font-weight:700;color:var(--on-surface-2);
+  display:flex;flex-direction:column;gap:4px}
+.sheet .row{display:flex;gap:10px;align-items:center;margin-top:4px}
+button.primary{background:var(--primary);color:var(--on-primary);border-radius:12px;
+  padding:10px 18px;font-weight:700}
+button.danger{color:var(--bad);font-weight:700;padding:10px 6px}
+#edit-cancel{color:var(--on-surface-2);font-weight:600;padding:10px 6px}
+#budget-save{padding:10px 16px}
+
+/* toast */
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:110px;
+  background:var(--on-surface);color:var(--bg);border-radius:12px;padding:10px 18px;
+  font-weight:600;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+.toast.show{opacity:1}
+
+/* desktop: spread the same cards into columns */
+@media (min-width:1100px){
+  #app{max-width:1360px;padding:28px 28px 40px}
+  #nav{display:none}
+  /* one slim header row replaces the per-column h1s */
+  #desk-head{display:flex;align-items:baseline;gap:14px;padding:0 2px 18px}
+  #desk-head h1{font-family:var(--font-display);font-size:26px;font-weight:800;margin:0}
+  #desk-head .sub{flex:1}
+  #desk-head .money{font-family:var(--font-display);font-size:22px;font-weight:800}
+  .greet,.bar{display:none}
+  #views{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:24px;align-items:start}
+  .view{display:flex !important}
+  #view-insights{grid-column:1 / -1} /* analytics view gets a full-width row below the 3 main panels */
+  #fab{right:36px;bottom:36px}
+  #sheet-overlay{align-items:center}
+  .sheet{border-radius:24px}
+  .overlay{display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.45)}
+  .overlay .view{background:var(--bg);border-radius:24px;padding:20px;width:460px}
+}
+
+/* ---- insights (all colors derived from tokens so both themes track) ---- */
+/* month calendar heatmap — one cell per day, hover/tap shows #hm-tip */
+.heatmap { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding: 4px 0; }
+.heatmap div { aspect-ratio: 1; border-radius: 9px; display: flex; align-items: center;
+  justify-content: center; font-size: 11px; font-weight: 600; color: var(--on-surface-2);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  transition: transform .12s ease; cursor: default; }
+.heatmap div[data-day]:hover { transform: scale(1.12); }
+.heatmap .wd { background: none; aspect-ratio: auto; font-size: 10px;
+  text-transform: uppercase; letter-spacing: .04em; }
+.heatmap .blank { background: none; }
+.heatmap .lv1 { background: color-mix(in srgb, var(--primary) 28%, transparent); }
+.heatmap .lv2 { background: color-mix(in srgb, var(--primary) 48%, transparent); color: var(--on-surface); }
+.heatmap .lv3 { background: color-mix(in srgb, var(--primary) 72%, transparent); color: var(--on-primary); }
+.heatmap .lv4 { background: var(--primary); color: var(--on-primary); }
+.hm-tip{position:fixed;z-index:50;background:var(--surface);border-radius:14px;
+  box-shadow:var(--shadow);padding:10px 12px;font-size:12px;max-width:260px;min-width:170px;
+  opacity:0;pointer-events:none;transform:translateY(4px);
+  transition:opacity .15s ease,transform .15s ease}
+.hm-tip.show{opacity:1;transform:none}
+.hm-tip .d{font-weight:700;margin-bottom:4px}
+.hm-tip .row{display:flex;justify-content:space-between;gap:12px}
+.hm-tip .row span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.up { color: var(--bad); font-size: .85em; }     /* spending up = bad */
+.down { color: var(--good); font-size: .85em; }
+.pill.total { font-weight: 700; }
+/* top-merchant cards */
+#merchant-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+#merchant-list .more{grid-column:1/-1}
+#merchant-list .empty{grid-column:1/-1}
+.mcard{background:var(--surface-2);border-radius:16px;padding:12px;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  transition:transform .12s ease,box-shadow .12s ease;animation:rowin .28s ease backwards}
+.mcard:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.mcard .dot{width:34px;height:34px;border-radius:12px;font-size:17px;margin-bottom:4px}
+.mcard .m-name{font-weight:700;font-size:13px;text-transform:capitalize;max-width:100%;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcard .m-total{font-family:var(--font-display);font-weight:800}
+
+/* ---- income ---- */
+.seg { display: flex; gap: 8px; justify-content: center; margin: 8px 0; }
+.seg button { padding: 6px 18px; border-radius: 999px; }
+.seg button.sel { background: var(--primary-container); color: var(--on-primary-container); font-weight: 700; }
+.amt.plus { color: var(--good); }
+.tx.income .ico { background: color-mix(in srgb, var(--good) 15%, transparent); }
+.tx.reimb .ico{background:color-mix(in srgb,var(--good) 15%,transparent)}
+.auto.rb{color:var(--good)}
+.edit-links{border-top:1px solid var(--surface-3);margin-top:8px;padding-top:8px}
+.link-row{display:flex;justify-content:space-between;font-size:13px;padding:2px 0}
+.link-row.net{font-weight:800;border-top:1px dashed var(--surface-3);margin-top:4px}
+
+/* ---- widgets (v4) ---- */
+.donut-wrap{position:relative;height:190px} /* same fixed-height-wrapper pattern as .chart-wrap */
+/* canvas ABOVE the center text: Chart.js paints tooltips on the canvas itself, so the
+   tooltip must outrank the HTML overlay; the total still shows through the transparent
+   donut hole (canvas pixels there are unpainted) */
+.donut-wrap canvas{position:relative;z-index:1}
+.donut-center{position:absolute;inset:0;z-index:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;pointer-events:none}
+.donut-center .money{font-family:var(--font-display);font-size:22px;font-weight:800}
+.donut-center .money.squeeze{font-size:17px} /* ≥S$1,000.00 — keep it inside the hole */
+.rings{display:flex;gap:16px;overflow-x:auto;padding:4px 2px}
+.ring-item{display:flex;flex-direction:column;align-items:center;gap:4px;flex:0 0 auto;cursor:pointer}
+.ring{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;
+  background:conic-gradient(var(--primary) calc(var(--p)*1%),var(--surface-3) 0)}
+.ring.warn{background:conic-gradient(var(--warn) calc(var(--p)*1%),var(--surface-3) 0)}
+.ring.over{background:conic-gradient(var(--bad) calc(var(--p)*1%),var(--surface-3) 0)}
+.ring .dot{width:48px;height:48px;border-radius:50%;font-size:20px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{padding:12px;text-align:center}
+.tile .t-emoji{font-size:20px}
+.tile .t-val{font-family:var(--font-display);font-weight:800;font-size:16px;margin:2px 0}
+.tile .t-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* year view */
+.big2{font-family:var(--font-display);font-size:26px;font-weight:800}
+.ynav{display:flex;align-items:center;gap:6px;font-weight:700}
+.mnav2{width:26px;height:26px;border-radius:50%;font-size:17px;line-height:1;color:var(--on-surface-2)}
+.mnav2:hover{background:var(--surface-3)}
+
+/* pending imports + budget tools */
+.p-acc,.p-ign{width:32px;height:32px;border-radius:50%;font-size:14px;font-weight:700;flex:0 0 auto}
+.p-acc{background:var(--primary-container);color:var(--on-primary-container)}
+.p-ign{background:var(--surface-3);color:var(--on-surface-2)}
+.b-tools button{color:var(--on-surface-2);font-size:13px;padding:2px 6px;border-radius:8px}
+.b-tools button:hover{background:var(--surface-3);color:var(--on-surface)}
+
+/* ---- motion (v4, extended v6) ---- */
+/* directional tab slide — mobile only (desktop grid shows all views at once) */
+@keyframes view-in-r{from{opacity:0;transform:translateX(24px)}}
+@keyframes view-in-l{from{opacity:0;transform:translateX(-24px)}}
+@media (max-width:1099px){
+  .view.view-in-right{animation:view-in-r .2s cubic-bezier(.2,0,0,1)}
+  .view.view-in-left{animation:view-in-l .2s cubic-bezier(.2,0,0,1)}
+}
+.pad button,button.primary,.chip,.cat-pick{transition:transform .08s ease}
+.tx:active,.pad button:active,button.primary:active,.chip:active,.cat-pick:active{transform:scale(.96)}
+
+/* rows breathe: staggered entrance fade-up (JS sets --i per child) + hover lift */
+@keyframes rowin{from{opacity:0;transform:translateY(8px)}}
+.txlist .tx,.bcard,.pill,.tile,.mcard{animation:rowin .28s ease backwards;
+  animation-delay:calc(var(--i,0)*30ms)}
+.heatmap>div{animation:rowin .2s ease backwards;animation-delay:calc(var(--i,0)*8ms)}
+.tx{transition:transform .12s ease,box-shadow .12s ease}
+.tx:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(27,29,38,.14)}
+.bcard[data-cat]{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}
+.bcard[data-cat]:hover{transform:translateY(-2px)}
+.chip:hover{background:var(--surface-2)}
+.chip.sel:hover{background:var(--primary-container)}
+.ring-item .ring{transition:transform .15s ease}
+.ring-item:hover .ring{transform:scale(1.06)}
+#nav button span{transition:transform .15s ease}
+#nav button.active span{transform:scale(1.18)}
+#fab{transition:transform .18s ease}
+#fab:hover{transform:rotate(90deg)}
+#fab:active{transform:rotate(90deg) scale(.92)}
+
+/* overlays: quick fade + slide, exit mirrors entry (.closing set by JS) */
+.overlay{animation:ovin .18s ease}
+.overlay .view,.sheet{animation:sheetin .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes ovin{from{opacity:0}}
+@keyframes sheetin{from{opacity:0;transform:translateY(24px)}}
+.overlay.closing{animation:ovout .16s ease forwards;pointer-events:none}
+.overlay.closing .view,.overlay.closing .sheet{animation:sheetout .16s ease forwards}
+@keyframes ovout{to{opacity:0}}
+@keyframes sheetout{to{opacity:0;transform:translateY(24px)}}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important}
+}
