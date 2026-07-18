@@ -9,6 +9,9 @@ SQLite file, no cloud services.
 > It replaces a commercial expense app with something that ingests my actual
 > bank alerts and answers on my own hardware.
 
+![Web dashboard](image/dashboard.png)
+*The dashboard in dark mode — home, insights, budgets and merchant views (personal amounts redacted).*
+
 ## Highlights
 
 - **Frictionless capture** — text the bot `kopi 2.80` and it's logged, categorised
