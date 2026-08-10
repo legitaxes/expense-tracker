@@ -2,3 +2,9 @@ python-telegram-bot==21.9
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 APScheduler==3.10.4
+tigeropen==3.7.0
+pypdf==5.1.0
+# Payslip OCR: pypdfium2 rasterises each page, pytesseract shells out to the
+# tesseract binary installed in the Dockerfile.
+pypdfium2==4.30.0
+pytesseract==0.3.13

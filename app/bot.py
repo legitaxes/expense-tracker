@@ -12,14 +12,16 @@ from calendar import monthrange
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import (Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters)
 
-from app import db, recurrence, trust_email
+from app import (cards, db, goals, payslip_archive, portfolio, recurrence,
+                 tiger, trust_email)
 from app.config import (TELEGRAM_BOT_TOKEN, ALLOWED_CHAT_ID, DB_PATH,
-                        CATEGORIES, ALERT_THRESHOLDS,
+                        CATEGORIES, DEFAULT_CATEGORY, ALERT_THRESHOLDS,
                         GMAIL_USER, GMAIL_APP_PASSWORD, EMAIL_POLL_MINUTES,
-                        EMAIL_CURSOR_PATH)
+                        EMAIL_CURSOR_PATH, PORTFOLIO_POLL_MINUTES,
+                        PAYSLIP_PDF_PASSWORD, PAYSLIP_SENDER, PAYSLIP_DIR)
 from app.parsing import parse_add, parse_recurring_add, parse_plain_text
 from app.recurrence import weekday_name
-from app.categories import guess_category
+from app.categories import effective_category, guess_category, learn_from_correction
 from app.money import dollars_to_cents, format_cents
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -43,8 +45,34 @@ HELP = (
     "<b>/recurring add</b> <code>1200 monthly 1 rent</code> — auto-log every month\n"
     "<b>/recurring add</b> <code>10 weekly mon groceries</code> · <code>5 daily coffee</code>\n"
     "<b>/recurring delete</b> <code>&lt;id&gt;</code> — stop a rule\n"
-    "\n<b>/goal</b> — savings goals · <b>/goal add</b> <code>Japan 3000</code> · <b>/goal put</b> <code>Japan 200</code>\n"
+    "\n<b>/goal</b> — savings goals · <b>/goal add</b> <code>Japan 3000</code> · <b>/goal put</b> <code>Japan 200</code>"
+    "\n   ↳ tap a goal's buttons to set a deadline, monthly auto-save, category or priority\n"
+    "\n<b>/cards</b> — your cards and what each is carrying this month"
+    "\n   ↳ tap 💳 Card on any transaction to say which card paid; I'll remember"
+    "\n<b>/merchants</b> — learned merchant categories, with buttons to forget one"
+    "\n<b>/payslip</b> <code>[n]</code> — archive payslip PDFs from the last n payroll "
+    "emails (default 3); monthly ones arrive on their own\n"
 )
+
+# The Telegram command menu. A module constant rather than a literal inside
+# _on_startup so a test can assert a new command actually reached the menu —
+# _on_startup only runs against a live Bot.
+BOT_COMMANDS = [
+    ("add", "Record a spend: /add 12.50 lunch at hawker"),
+    ("income", "Record income: /income 5000 salary"),
+    ("undo", "Delete the latest transaction"),
+    ("recent", "Show recent transactions"),
+    ("find", "Search transactions: /find kopi"),
+    ("summary", "Month spending by category"),
+    ("budget", "Show/set budgets: /budget Transport 300"),
+    ("trip", "Trip mode: new spends default to Travel"),
+    ("recurring", "Auto-logged expenses: add/list/delete"),
+    ("goal", "Savings goals: add/put/delete"),
+    ("cards", "List your cards and what each is carrying"),
+    ("merchants", "Learned merchant categories: list/forget"),
+    ("payslip", "Import payslip PDFs from email into the Pay tab"),
+    ("help", "How everything works"),
+]
 
 CAT_EMOJI = {"Food": "🍜", "Groceries": "🛒", "Transport": "🚌", "Shopping": "🛍️",
              "Bills": "🧾", "Health": "💊", "Entertainment": "🎮", "Travel": "✈️",
@@ -113,29 +141,27 @@ async def cmd_add(update, ctx: ContextTypes.DEFAULT_TYPE):
 def _tx_buttons(tid, undo_tid=None):
     """Standard action row for any transaction message the bot posts."""
     rows = [[InlineKeyboardButton("✏️ Fix category", callback_data=f"fix:{tid}"),
-             InlineKeyboardButton("✏️ Edit note", callback_data=f"note:{tid}")]]
+             InlineKeyboardButton("✏️ Edit note", callback_data=f"note:{tid}"),
+             InlineKeyboardButton("💳 Card", callback_data=f"card:{tid}")]]
     if undo_tid is not None:
         rows.append([InlineKeyboardButton("🗑 Undo", callback_data=f"del:{undo_tid}")])
     return InlineKeyboardMarkup(rows)
 
 
-def _effective_category(conn, note: str) -> tuple[str, bool]:
-    """(category, via_trip). Trip mode routes every new spend to Travel;
-    recurring-rule postings and income flows deliberately bypass this."""
-    if db.get_setting(conn, "trip_mode", "0") == "1":
-        return "Travel", True
-    return guess_category(note), False
+# Suffix shown when the category did not come from the keyword rules, so an
+# automatic decision is never silent.
+_ORIGIN_SUFFIX = {"trip": " · ✈️ trip mode", "memory": " · 🧠 remembered"}
 
 
-def _cat_line(category: str, via_trip: bool) -> str:
-    return f"🏷️ {category}" + (" · ✈️ trip mode" if via_trip else "")
+def _cat_line(category: str, origin: str) -> str:
+    return f"🏷️ {category}" + _ORIGIN_SUFFIX.get(origin, "")
 
 
 async def _log_expense(update, amount_cents: int, note: str) -> None:
     ym = db.current_year_month()
     conn = _conn()
     try:
-        category, via_trip = _effective_category(conn, note)
+        category, origin = effective_category(conn, note)
         tid = db.add_transaction(conn, amount_cents, note, category, "telegram")
         crossed = db.check_and_record_alerts(conn, category, ym, ALERT_THRESHOLDS)
         limit = db.get_budgets(conn).get(category)
@@ -144,7 +170,7 @@ async def _log_expense(update, amount_cents: int, note: str) -> None:
         conn.close()
     await update.message.reply_text(
         f"✅ Recorded <b>{format_cents(amount_cents)}</b>\n"
-        f"📝 {note or '(no note)'}\n{_cat_line(category, via_trip)}",
+        f"📝 {note or '(no note)'}\n{_cat_line(category, origin)}",
         parse_mode=ParseMode.HTML,
         reply_markup=_tx_buttons(tid),
     )
@@ -187,7 +213,7 @@ async def cb_quickadd(update, ctx: ContextTypes.DEFAULT_TYPE):
     ym = db.current_year_month()
     conn = _conn()
     try:
-        category, via_trip = _effective_category(conn, f["note"])
+        category, origin = effective_category(conn, f["note"])
         tid = db.add_transaction(conn, f["median_cents"], f["note"], category, "telegram")
         crossed = db.check_and_record_alerts(conn, category, ym, ALERT_THRESHOLDS)
         limit = db.get_budgets(conn).get(category)
@@ -196,7 +222,7 @@ async def cb_quickadd(update, ctx: ContextTypes.DEFAULT_TYPE):
         conn.close()
     await q.edit_message_text(
         f"✅ Recorded <b>{format_cents(f['median_cents'])}</b>\n"
-        f"📝 {f['note']}\n{_cat_line(category, via_trip)}",
+        f"📝 {f['note']}\n{_cat_line(category, origin)}",
         parse_mode=ParseMode.HTML,
         reply_markup=_tx_buttons(tid, undo_tid=tid))
     for _ in crossed:
@@ -284,13 +310,78 @@ async def cb_setcat(update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         db.update_transaction(conn, tid, category=category)
         row = db.get_transaction(conn, tid)
+        learned = learn_from_correction(conn, row, category) if row else None
     finally:
         conn.close()
     if row:
+        memo = (f"\n🧠 Remembered: {html.escape(learned)} → {category}"
+                if learned else "")
         await q.edit_message_text(
             f"✅ Recorded <b>{format_cents(row['amount_cents'])}</b>\n"
-            f"📝 {row['note'] or '(no note)'}\n🏷️ {category}", parse_mode=ParseMode.HTML,
-            reply_markup=_tx_buttons(tid))
+            f"📝 {html.escape(row['note'] or '(no note)')}\n🏷️ {category}{memo}",
+            parse_mode=ParseMode.HTML, reply_markup=_tx_buttons(tid))
+
+
+def _card_picker_rows(conn, tid):
+    """Inline-keyboard rows for the card picker. Names are escaped here rather
+    than at the call site: a card named "M&S" would 400 an HTML-parsed message
+    and self-lock the picker, exactly as an "H&M" merchant stem once did.
+
+    Only ACTIVE cards are offered (db.list_cards excludes archived by default):
+    the API answers 400 for an archived assignment, and cards.assign_card would
+    bind an instrument that db.recall_instrument can never return.
+    """
+    rows = [[InlineKeyboardButton(html.escape(c["name"]),
+                                  callback_data=f"cs:{tid}:{c['id']}")]
+            for c in db.list_cards(conn)]
+    rows.append([InlineKeyboardButton("— Unassigned —", callback_data=f"cs:{tid}:0")])
+    return rows
+
+
+async def cb_card(update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await _guard(update):
+        return
+    q = update.callback_query
+    tid = int(q.data.split(":")[1])
+    conn = _conn()
+    try:
+        rows = _card_picker_rows(conn, tid)
+    finally:
+        conn.close()
+    if len(rows) == 1:   # only the Unassigned row — a picker with nothing to pick
+        await q.answer("No cards yet — add one in the dashboard's Cards tab.",
+                       show_alert=True)
+        return
+    await q.answer()
+    await q.edit_message_reply_markup(InlineKeyboardMarkup(rows))
+
+
+async def cb_setcard(update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await _guard(update):
+        return
+    q = update.callback_query
+    await q.answer()
+    _, tid_s, cid_s = q.data.split(":")
+    tid = int(tid_s)
+    cid = int(cid_s) or None      # 0 means Unassigned
+    conn = _conn()
+    try:
+        # One call: cards.assign_card owns the pre-update comparison and the
+        # learning, so the bot and the dashboard cannot drift apart.
+        cards.assign_card(conn, tid, cid)
+        row = db.get_transaction(conn, tid)
+        card = db.get_card(conn, cid) if cid else None
+    finally:
+        conn.close()
+    if row is None:
+        await q.edit_message_text("That transaction is gone.")
+        return
+    name = html.escape(card["name"]) if card else "Unassigned"
+    await q.edit_message_text(
+        f"✅ Recorded <b>{format_cents(row['amount_cents'])}</b>\n"
+        f"📝 {html.escape(row['note'] or '(no note)')}\n"
+        f"🏷️ {html.escape(row['category'])}\n💳 {name}",
+        parse_mode=ParseMode.HTML, reply_markup=_tx_buttons(tid))
 
 
 async def cb_editnote(update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -317,8 +408,22 @@ async def on_edit_reply(update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update) or not update.message or not update.message.text:
         return
     replied = update.message.reply_to_message
-    tid = _parse_edit_prompt_tid(replied.text if replied else None)
-    if tid is None or not replied.from_user or not replied.from_user.is_bot:
+    replied_text = replied.text if replied else None
+    from_bot = bool(replied and replied.from_user and replied.from_user.is_bot)
+
+    goal_target = _parse_goal_prompt(replied_text) if from_bot else None
+    if goal_target is not None:
+        gid, field = goal_target
+        err, g = await _apply_goal_reply(gid, field, update.message.text.strip())
+        if g is None:
+            await update.message.reply_text(err or "That goal is gone.")
+            return
+        await update.message.reply_text(_describe_goal(g), parse_mode=ParseMode.HTML,
+                                        reply_markup=_goal_buttons(g))
+        return
+
+    tid = _parse_edit_prompt_tid(replied_text)
+    if tid is None or not from_bot:
         await on_text(update, ctx)
         return
     new_note = update.message.text.strip()
@@ -486,6 +591,29 @@ async def cmd_budget(update, ctx: ContextTypes.DEFAULT_TYPE):
 
 _EDIT_PROMPT_RE = re.compile(r"new note for #(\d+)")
 
+# Goal prompts deliberately use "goal <id> · <field>" and never "#<id>",
+# so _EDIT_PROMPT_RE (r"new note for #(\d+)") can never claim one. Anchored to
+# the marker's own line (not a bare "search") so a transaction NOTE that
+# happens to contain the literal text "goal 7 · due" (machine-sourced bank/
+# email text — the class of input that has burned this project before)
+# can't be misread as the marker line itself.
+_GOAL_PROMPT_RE = re.compile(r"^\(goal (\d+) · (due|monthly|note|price)\)$", re.M)
+_GOAL_PROMPT_ASK = {
+    "due": "📅 Reply with the deadline as YYYY-MM-DD (or “-” to clear)",
+    "monthly": "💵 Reply with the amount to auto-save each month (or “-” to stop)",
+    "note": "📝 Reply with the note (or “-” to clear)",
+    "price": "✅ Reply with the price you paid (or “-” for the target amount)",
+}
+
+
+def _goal_prompt(gid: int, field: str) -> str:
+    return f"{_GOAL_PROMPT_ASK[field]}\n(goal {gid} · {field})"
+
+
+def _parse_goal_prompt(text):
+    m = _GOAL_PROMPT_RE.search(text or "")
+    return (int(m.group(1)), m.group(2)) if m else None
+
 
 def _edit_prompt(row) -> str:
     return (f"✏️ Reply with the new note for #{row['id']}\n"
@@ -531,9 +659,56 @@ def _goal_bar(pct: float) -> str:
 
 def _describe_goal(g) -> str:
     pct = g["saved_cents"] / g["target_cents"] * 100 if g["target_cents"] else 0
-    return (f"#{g['id']} <b>{html.escape(g['name'])}</b>\n"
-            f"   {_goal_bar(pct)} {pct:.0f}%\n"
-            f"   {format_cents(g['saved_cents'])} of {format_cents(g['target_cents'])}")
+    head = f"#{g['id']} <b>{html.escape(g['name'])}</b>"
+    if g["priority"] == 1:
+        head += " ⭐"
+    lines = [head,
+             f"   {_goal_bar(pct)} {pct:.0f}%",
+             f"   {format_cents(g['saved_cents'])} of {format_cents(g['target_cents'])}"
+             + (f" · 🏷 {html.escape(g['category'])}" if g["category"] else "")]
+    p = g.get("pace") or {}
+    monthly_suffix = (f" · saving {format_cents(g['monthly_cents'])}/mo"
+                      if g["monthly_cents"] else "")
+    if g["bought_at"]:
+        lines.append("   ✅ Bought")
+    elif p.get("status") == "done":
+        lines.append("   🎉 Fully saved" + monthly_suffix)
+    elif p.get("status") == "overdue":
+        lines.append(f"   ⚠️ Overdue ({g['target_date']}) · "
+                     f"{format_cents(p['need_per_month'])} short" + monthly_suffix)
+    elif p.get("status") in ("ok", "behind"):
+        # monthly_suffix's phrasing is duplicated inline (not reused) so the
+        # existing "→ behind ..." tail stays appended after it, not after a
+        # blanket suffix.
+        line = (f"   📅 by {g['target_date']} · needs "
+                f"{format_cents(p['need_per_month'])}/mo")
+        if g["monthly_cents"]:
+            line += f" · saving {format_cents(g['monthly_cents'])}/mo"
+        if p["status"] == "behind":
+            line += f" → behind {format_cents(p['shortfall_per_month'])}/mo"
+        lines.append(line)
+    elif g["monthly_cents"]:
+        # status == "none" (no deadline set) — still confirm the commitment,
+        # otherwise arming auto-save on a no-deadline goal is invisible.
+        lines.append(f"   💵 saving {format_cents(g['monthly_cents'])}/mo")
+    if g["note"]:
+        lines.append(f"   📝 {html.escape(g['note'])}")
+    return "\n".join(lines)
+
+
+def _goal_buttons(g):
+    if g["bought_at"]:
+        return InlineKeyboardMarkup([[InlineKeyboardButton("🗑", callback_data=f"gdel:{g['id']}")]])
+    gid = g["id"]
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📅 Due", callback_data=f"gask:{gid}:due"),
+         InlineKeyboardButton("💵 Monthly", callback_data=f"gask:{gid}:monthly"),
+         InlineKeyboardButton("🏷 Category", callback_data=f"gcat:{gid}")],
+        [InlineKeyboardButton("⭐ Priority", callback_data=f"gpri:{gid}"),
+         InlineKeyboardButton("📝 Note", callback_data=f"gask:{gid}:note"),
+         InlineKeyboardButton("✅ Bought", callback_data=f"gask:{gid}:price"),
+         InlineKeyboardButton("🗑", callback_data=f"gdel:{gid}")],
+    ])
 
 
 async def _post_rule(bot, conn, rule, today: date) -> int:
@@ -588,7 +763,8 @@ async def _post_rule(bot, conn, rule, today: date) -> int:
 
 
 async def post_due_recurring(app) -> None:
-    """Scheduler tick + startup catch-up: post all rules whose next_due has arrived."""
+    """Scheduler tick + startup catch-up: post all rules whose next_due has arrived,
+    then sweep goal auto-funding (same 00:10 tick — no separate schedule)."""
     today = date.today()
     conn = _conn()
     try:
@@ -597,15 +773,62 @@ async def post_due_recurring(app) -> None:
                 await _post_rule(app.bot, conn, rule, today)
             except Exception:
                 log.exception("failed to post recurring rule %s", rule["id"])
+        try:
+            funded = goals.fund_due(conn, today)
+        except Exception:
+            log.exception("goal auto-funding sweep failed")
+            funded = []
     finally:
         conn.close()
+    for name, cents in funded:
+        await app.bot.send_message(
+            ALLOWED_CHAT_ID,
+            f"🎯 Auto-saved <b>{format_cents(cents)}</b> → {html.escape(name)}",
+            parse_mode=ParseMode.HTML)
 
 
-async def _handle_import(bot, conn, uid, sender, subject, html, msg_dt) -> None:
+async def _archive_payslip(bot, conn, uid, info, msg_dt) -> None:
+    """Decrypt, archive and index one payslip PDF. Writes no transaction —
+    salary income already comes from the bank credit alert, so a row here
+    would double-count the month.
+
+    The archiving itself lives in `payslip_archive` so the web dashboard runs
+    the identical path; this only renders the result as Telegram messages.
+    """
+    # Rendering + OCR is CPU-bound and can take seconds per page; off the
+    # event loop or the whole bot stops answering while it runs.
+    results = await asyncio.to_thread(
+        payslip_archive.archive_pdf, conn, info["data"], PAYSLIP_PDF_PASSWORD,
+        PAYSLIP_DIR, msg_dt.strftime("%Y-%m"), uid,
+        msg_dt.strftime("%Y-%m-%dT%H:%M:%S"))
+    for r in results:
+        await bot.send_message(chat_id=ALLOWED_CHAT_ID,
+                               text=_payslip_message(r),
+                               parse_mode=ParseMode.HTML)
+
+
+def _payslip_message(r: dict) -> str:
+    """One archived month as Telegram HTML."""
+    net = (f"\n💵 Net {format_cents(r['net_cents'])}"
+           if r["net_cents"] is not None else "")
+    ocr = " (read by OCR)" if r["text_source"] == "ocr" else ""
+    tail = ("\n\n" + "\n".join("⚠️ " + w for w in r["warnings"])
+            if r["warnings"] else "")
+    return (f"🧾 Payslip <b>{r['period']}</b> archived{ocr}{net}\n"
+            f"📄 {len(r['items'])} line items — see the Pay tab.{tail}")
+
+
+async def _handle_import(bot, conn, uid, sender, subject, html, msg_dt,
+                         attachments=()) -> None:
     """Insert one parsed transaction email + notify; or ping if a real spend
     won't parse. Trust cancellations warn instead of inserting."""
     label, source = trust_email.SOURCES.get(sender, ("Trust", "trust-email"))
-    action, parsed = trust_email.classify_email(sender, subject, html, msg_dt)
+    action, parsed = trust_email.classify_email(
+        sender, subject, html, msg_dt, attachments=attachments,
+        payslip_sender=PAYSLIP_SENDER)
+    if action == "payslip":
+        await _archive_payslip(bot, conn, uid, parsed, msg_dt)
+        return
     if action == "cancelled":
         await bot.send_message(
             chat_id=ALLOWED_CHAT_ID,
@@ -634,8 +857,11 @@ async def _handle_import(bot, conn, uid, sender, subject, html, msg_dt) -> None:
             ]]))
         return
     if action == "suggest_income":
+        # Prefer the transaction time stated in the body; fall back to when the
+        # mail arrived only for shapes that don't carry one.
+        when = parsed.get("created_at") or msg_dt.strftime("%Y-%m-%dT%H:%M:%S")
         pid = db.add_pending_import(conn, parsed["amount_cents"], parsed["note"],
-                                    msg_dt.strftime("%Y-%m-%dT%H:%M:%S"), type_="income")
+                                    when, type_="income")
         await bot.send_message(
             chat_id=ALLOWED_CHAT_ID,
             text=(f"💰 Incoming money <b>{format_cents(parsed['amount_cents'])}</b>\n"
@@ -645,13 +871,19 @@ async def _handle_import(bot, conn, uid, sender, subject, html, msg_dt) -> None:
         return
     if action != "import":
         return  # non-transaction (statement/notice/dedup) → silently skip
-    category, via_trip = _effective_category(conn, parsed["note"])
+    category, origin = effective_category(conn, parsed["note"])
+    instrument = parsed.get("instrument", "")
+    card_id, _card_origin = cards.effective_card(conn, source, instrument)
     tid = db.add_transaction(conn, parsed["amount_cents"], parsed["note"],
-                             category, source, created_at=parsed["created_at"])
+                             category, source, created_at=parsed["created_at"],
+                             card_id=card_id, instrument=instrument or None)
+    # A negative import is money coming back (a merchant refund), not a spend.
+    head = (f"↩️ Refund from {label}" if parsed["amount_cents"] < 0
+            else f"📥 Imported from {label}")
     await bot.send_message(
         chat_id=ALLOWED_CHAT_ID,
-        text=(f"📥 Imported from {label} <b>{format_cents(parsed['amount_cents'])}</b>\n"
-              f"💳 {parsed['note']}\n{_cat_line(category, via_trip)}"),
+        text=(f"{head} <b>{format_cents(parsed['amount_cents'])}</b>\n"
+              f"💳 {parsed['note']}\n{_cat_line(category, origin)}"),
         parse_mode=ParseMode.HTML,
         reply_markup=_tx_buttons(tid))
     ym = parsed["created_at"][:7]
@@ -683,9 +915,9 @@ async def cb_import_accept(update, ctx: ContextTypes.DEFAULT_TYPE):
             db.add_transaction(conn, row["amount_cents"], row["note"], "Income",
                                "suggest-email", created_at=row["created_at"], type_="income")
             db.delete_pending_import(conn, pid)
-            category, tid, via_trip = "Income", None, False
+            category, tid, origin = "Income", None, "keyword"
         else:
-            category, via_trip = _effective_category(conn, row["note"])
+            category, origin = effective_category(conn, row["note"])
             tid = db.add_transaction(conn, row["amount_cents"], row["note"], category,
                                      "suggest-email", created_at=row["created_at"])
             db.delete_pending_import(conn, pid)
@@ -694,7 +926,7 @@ async def cb_import_accept(update, ctx: ContextTypes.DEFAULT_TYPE):
     markup = _tx_buttons(tid) if tid else None
     await q.edit_message_text(
         f"📥 Imported <b>{format_cents(row['amount_cents'])}</b>\n"
-        f"📝 {row['note']}\n{_cat_line(category, via_trip)}",
+        f"📝 {row['note']}\n{_cat_line(category, origin)}",
         parse_mode=ParseMode.HTML, reply_markup=markup)
 
 
@@ -792,7 +1024,7 @@ async def cb_reimb_link(update, ctx: ContextTypes.DEFAULT_TYPE):
         if row is None or orig is None:
             await q.edit_message_text("Already handled.")
             return
-        db.add_transaction(conn, -row["amount_cents"], "↩️ " + row["note"],
+        db.add_transaction(conn, -row["amount_cents"], db.REIMB_PREFIX + row["note"],
                            orig["category"], "suggest-email",
                            created_at=row["created_at"], link_tid=otid)
         db.delete_pending_import(conn, pid)
@@ -825,7 +1057,7 @@ async def cb_reimb_setcat(update, ctx: ContextTypes.DEFAULT_TYPE):
         if row is None:
             await q.edit_message_text("Already handled.")
             return
-        db.add_transaction(conn, -row["amount_cents"], "↩️ " + row["note"],
+        db.add_transaction(conn, -row["amount_cents"], db.REIMB_PREFIX + row["note"],
                            category, "suggest-email", created_at=row["created_at"])
         db.delete_pending_import(conn, pid)
     finally:
@@ -858,9 +1090,12 @@ async def poll_trust_email(app) -> None:
             trust_email.write_cursor(EMAIL_CURSOR_PATH, validity, newest)
             log.info("Trust email cursor seeded at UID %s (go-forward).", newest)
             return
+        # Only the payslip sender's PDFs are decoded, and only when the feature
+        # is configured — an empty password means no payslip is ever opened.
+        want_pdf = (PAYSLIP_SENDER,) if (PAYSLIP_PDF_PASSWORD and PAYSLIP_SENDER) else ()
         validity, emails = await asyncio.to_thread(
             trust_email.fetch_since, trust_email.IMAP_HOST, GMAIL_USER,
-            GMAIL_APP_PASSWORD, cursor[1])
+            GMAIL_APP_PASSWORD, cursor[1], want_pdf)
     except Exception:
         log.exception("Trust email poll failed")
         return
@@ -872,9 +1107,10 @@ async def poll_trust_email(app) -> None:
         return
     conn = _conn()
     try:
-        for uid, sender, subject, html, msg_dt in emails:
+        for uid, sender, subject, html, msg_dt, attachments in emails:
             try:
-                await _handle_import(app.bot, conn, uid, sender, subject, html, msg_dt)
+                await _handle_import(app.bot, conn, uid, sender, subject, html,
+                                     msg_dt, attachments)
             except Exception:
                 log.exception("failed to import transaction email UID %s", uid)
             # Advance AFTER handling so a crash re-processes from here, never past.
@@ -952,7 +1188,11 @@ async def send_goal_nudge(app, ym: str) -> None:
     conn = _conn()
     try:
         leftover = db.month_income(conn, ym) - db.month_summary(conn, ym)["total_cents"]
-        goals = [g for g in db.list_goals(conn) if g["saved_cents"] < g["target_cents"]]
+        # Buying writes a transaction, not a contribution, so a bought goal can
+        # still satisfy saved_cents < target_cents — exclude it explicitly or
+        # the nudge offers to allocate more money to something already bought.
+        goals = [g for g in db.list_goals(conn)
+                if g["bought_at"] is None and g["saved_cents"] < g["target_cents"]]
     finally:
         conn.close()
     if leftover <= 0 or not goals:
@@ -1019,6 +1259,164 @@ async def check_pace(app) -> None:
                 text=(f"📈 <b>{cat}</b> pacing {format_cents(projected)} by month-end "
                       f"(budget {format_cents(limit)})."),
                 parse_mode=ParseMode.HTML)
+    finally:
+        conn.close()
+
+
+def _cards_lines(conn, ym) -> list[str]:
+    """One line per card: what it is, what it carried this month, what feeds it.
+
+    Built from db.list_cards joined onto db.month_card_spend rather than from
+    the spend rows alone — those only cover cards that were actually spent on,
+    and a card sitting at zero is exactly what the user checks when they think
+    attribution is broken. Archived cards are listed only when they still hold
+    spend this month, so the lines still add up to the month's total.
+
+    Bindings come from db.list_instruments, never db.recall_instrument: that one
+    bumps the hit count, and a runaway count is the signal that an over-broad
+    source default is running away.
+    """
+    active = db.list_cards(conn)
+    # Keyed on "never made a card", not "no active cards": archiving the only
+    # card must not hide the spend it still holds this month.
+    if not db.list_cards(conn, include_archived=True):
+        return ["💳 No cards yet — add one in the dashboard's Cards tab and "
+                "I'll attribute imports to it."]
+    spend = {r["card_id"]: r["total_cents"] for r in db.month_card_spend(conn, ym)}
+    labels = {src: label for label, src in trust_email.SOURCES.values()}
+    bound = {}
+    for r in db.list_instruments(conn):
+        if r["token"] == "":
+            bound.setdefault(r["card_id"], []).append(labels.get(r["source"], r["source"]))
+
+    lines = [f"💳 <b>Cards</b> — {ym}\n"]
+    for c in sorted(active, key=lambda c: (-spend.get(c["id"], 0), c["id"])):
+        what = c["kind"] + (f" ••{c['last4']}" if c["last4"] else "")
+        senders = bound.get(c["id"])
+        feed = f" · from {html.escape(', '.join(sorted(senders)))}" if senders else ""
+        lines.append(f"• {html.escape(c['name'])} ({html.escape(what)}): "
+                     f"{format_cents(spend.get(c['id'], 0))}{feed}")
+    live = {c["id"] for c in active}
+    for r in db.month_card_spend(conn, ym):
+        if r["card_id"] is not None and r["card_id"] not in live:
+            lines.append(f"• {html.escape(r['name'])} (archived): "
+                         f"{format_cents(r['total_cents'])}")
+    lines.append(f"• <i>Unassigned</i>: {format_cents(spend.get(None, 0))}")
+    return lines
+
+
+async def cmd_cards(update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await _guard(update):
+        return
+    conn = _conn()
+    try:
+        lines = _cards_lines(conn, db.current_year_month())
+    finally:
+        conn.close()
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
+
+
+def _merchants_text(rows) -> str:
+    """Learned merchants, most-used first. A runaway hit count is the visible
+    symptom of a stem that generalised too far."""
+    if not rows:
+        return ("🧠 Nothing learned yet — fix a category on an email import "
+                "and I'll remember that merchant.")
+    lines = [f"{i + 1}. {html.escape(r['stem'])} → {html.escape(r['category'])} · {r['hits']}×"
+             for i, r in enumerate(rows)]
+    return "🧠 <b>Learned merchants</b>\n\n" + "\n".join(lines)
+
+
+async def cmd_merchants(update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await _guard(update):
+        return
+    conn = _conn()
+    try:
+        rows = db.list_merchants(conn)
+    finally:
+        conn.close()
+    buttons = [InlineKeyboardButton(f"🗑 {i + 1}", callback_data=f"mforget:{r['id']}")
+               for i, r in enumerate(rows)]
+    await update.message.reply_text(
+        _merchants_text(rows), parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(
+            [buttons[i:i + 4] for i in range(0, len(buttons), 4)]) if buttons else None)
+
+
+async def cb_mforget(update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await _guard(update):
+        return
+    q = update.callback_query
+    await q.answer()
+    mid = int(q.data.split(":")[1])
+    conn = _conn()
+    try:
+        row = db.get_merchant(conn, mid)
+        ok = db.forget_merchant(conn, mid)
+    finally:
+        conn.close()
+    await q.edit_message_text(
+        f"🗑 Forgot: {row['stem']} → {row['category']}" if ok and row
+        else "That merchant is already gone.")
+
+
+async def cmd_payslip(update, ctx: ContextTypes.DEFAULT_TYPE):
+    """One-shot backfill: pull the payroll sender's recent PDFs and archive them.
+
+    The email poll only ever looks forward from its UID cursor, so a payslip
+    that landed before the feature shipped is behind it for good — and dragging
+    the cursor back would re-import every transaction email in between. This
+    searches by sender instead, leaves the cursor alone, and runs the exact
+    same archive path as the poll. Safe to repeat: each month upserts on its
+    own period, so re-running overwrites rather than duplicates.
+    """
+    if not await _guard(update):
+        return
+    if not GMAIL_APP_PASSWORD:
+        await update.message.reply_text(
+            "Email access isn't configured — set GMAIL_USER and "
+            "GMAIL_APP_PASSWORD in .env, then Stop→Start the stack.")
+        return
+    if not (PAYSLIP_PDF_PASSWORD and PAYSLIP_SENDER):
+        await update.message.reply_text(
+            "Payslip archiving is off — set PAYSLIP_PDF_PASSWORD in .env, then "
+            "Stop→Start the stack (env changes need a recreate).")
+        return
+    try:
+        limit = max(1, min(20, int(ctx.args[0]))) if ctx.args else 3
+    except ValueError:
+        await update.message.reply_text("Usage: /payslip [how many emails to scan]")
+        return
+    await update.message.reply_text(
+        f"🔎 Scanning the last {limit} payroll emails… reading a payslip needs "
+        f"OCR, so this takes a moment.")
+    try:
+        _, emails = await asyncio.to_thread(
+            trust_email.fetch_from_sender, trust_email.IMAP_HOST, GMAIL_USER,
+            GMAIL_APP_PASSWORD, PAYSLIP_SENDER, limit)
+    except Exception as exc:
+        log.exception("payslip backfill search failed")
+        await update.message.reply_text(
+            f"⚠️ Couldn't search the mailbox: {type(exc).__name__}")
+        return
+    with_pdf = [e for e in emails if e[5]]
+    if not with_pdf:
+        await update.message.reply_text(
+            f"No PDF attachments found in the last {limit} emails from "
+            f"{PAYSLIP_SENDER}. Try a larger number: /payslip 10")
+        return
+    conn = _conn()
+    try:
+        for uid, sender, subject, body, msg_dt, attachments in with_pdf:
+            try:
+                # Through classify_email, not straight to _archive_payslip, so
+                # this exercises the same routing the scheduled poll uses.
+                await _handle_import(update.get_bot(), conn, uid, sender,
+                                     subject, body, msg_dt, attachments)
+            except Exception:
+                log.exception("payslip backfill failed for UID %s", uid)
+                await update.message.reply_text(
+                    f"⚠️ Failed on the email dated {msg_dt:%Y-%m-%d} — see logs.")
     finally:
         conn.close()
 
@@ -1103,6 +1501,129 @@ async def cb_recdel(update, ctx: ContextTypes.DEFAULT_TYPE):
         else f"No active rule #{rid}.")
 
 
+def _goal_by_id(conn, gid):
+    return next((g for g in goals.list_with_pace(conn) if g["id"] == gid), None)
+
+
+async def cb_goal_ask(update, ctx: ContextTypes.DEFAULT_TYPE):
+    """📅/💵/📝/✅ — open a ForceReply. State lives in the prompt text."""
+    if not await _guard(update):
+        return
+    q = update.callback_query
+    _, gid, field = q.data.split(":")
+    conn = _conn()
+    try:
+        gone = db.get_goal(conn, int(gid)) is None
+    finally:
+        conn.close()
+    if gone:
+        await q.answer("That goal is gone.", show_alert=True)
+        return
+    await q.answer()
+    await q.message.reply_text(_goal_prompt(int(gid), field),
+                               reply_markup=ForceReply(selective=True))
+
+
+async def cb_goal_pick(update, ctx: ContextTypes.DEFAULT_TYPE):
+    """🏷/⭐ — fixed sets, so an inline keyboard beats typing."""
+    if not await _guard(update):
+        return
+    q = update.callback_query
+    kind, gid = q.data.split(":")[0], int(q.data.split(":")[1])
+    await q.answer()
+    if kind == "gcat":
+        rows = [[InlineKeyboardButton(c, callback_data=f"gset:{gid}:cat:{c}")]
+                for c in CATEGORIES]
+    else:
+        rows = [[InlineKeyboardButton(f"{n} — {label}",
+                                      callback_data=f"gset:{gid}:pri:{n}")]
+                for n, label in goals.PRIORITY_LABELS.items()]
+    await q.message.reply_text("Pick one:", reply_markup=InlineKeyboardMarkup(rows))
+
+
+async def cb_goal_set(update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await _guard(update):
+        return
+    q = update.callback_query
+    _, gid, kind, value = q.data.split(":", 3)
+    conn = _conn()
+    try:
+        if kind == "cat":
+            db.update_goal(conn, int(gid), category=value)
+        else:
+            db.update_goal(conn, int(gid), priority=int(value))
+        g = _goal_by_id(conn, int(gid))
+    finally:
+        conn.close()
+    if g is None:
+        await q.edit_message_text("That goal is gone.")
+        return
+    await q.edit_message_text(_describe_goal(g), parse_mode=ParseMode.HTML,
+                              reply_markup=_goal_buttons(g))
+
+
+async def cb_goal_delete(update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await _guard(update):
+        return
+    q = update.callback_query
+    gid = int(q.data.split(":")[1])
+    conn = _conn()
+    try:
+        row = db.get_goal(conn, gid)
+        ok = db.delete_goal(conn, gid)
+    finally:
+        conn.close()
+    await q.edit_message_text(
+        f"🗑 Goal “{html.escape(row['name'])}” deleted." if ok and row
+        else f"No goal #{gid}.", parse_mode=ParseMode.HTML)
+
+
+async def _apply_goal_reply(gid: int, field: str, text: str):
+    """Returns (reply_text, goal_or_None). Pure-ish: owns its own connection."""
+    clear = text == "-"
+    conn = _conn()
+    try:
+        if db.get_goal(conn, gid) is None:
+            return "That goal is gone.", None
+        if field == "due":
+            if clear:
+                db.update_goal(conn, gid, target_date=None)
+            else:
+                try:
+                    parsed = date.fromisoformat(text)
+                except ValueError:
+                    return "Send the deadline as YYYY-MM-DD, e.g. 2027-03-01.", None
+                # Store the canonical form — date.fromisoformat also accepts
+                # "20270301", week dates, and datetime strings; writing the
+                # raw text would mis-sort ORDER BY target_date and wouldn't
+                # populate the web <input type="date">.
+                db.update_goal(conn, gid, target_date=parsed.isoformat())
+        elif field == "monthly":
+            if clear:
+                db.update_goal(conn, gid, monthly_cents=None, next_due=None)
+            elif not _looks_like_amount(text):
+                return "Send an amount, e.g. 200.", None
+            else:
+                db.update_goal(conn, gid, monthly_cents=dollars_to_cents(text),
+                               next_due=goals.first_of_next_month(date.today()))
+        elif field == "note":
+            db.update_goal(conn, gid, note="" if clear else text)
+        elif field == "price":
+            g = db.get_goal(conn, gid)
+            if g["bought_at"]:
+                return "Already marked bought.", None
+            if not clear and not _looks_like_amount(text):
+                return "Send the price, e.g. 1899 — or “-” for the target.", None
+            cents = g["target_cents"] if clear else dollars_to_cents(text)
+            # The goal's own category wins outright — not effective_category().
+            tid = db.add_transaction(conn, cents, g["name"],
+                                     g["category"] or DEFAULT_CATEGORY, "goal")
+            db.mark_goal_bought(conn, gid, tid)
+        return "", _goal_by_id(conn, gid)
+    finally:
+        conn.close()
+
+
 async def cmd_goal(update, ctx: ContextTypes.DEFAULT_TYPE):
     if not await _guard(update):
         return
@@ -1117,9 +1638,10 @@ async def cmd_goal(update, ctx: ContextTypes.DEFAULT_TYPE):
                 return
             name = " ".join(args[1:-1]).strip()
             gid = db.add_goal(conn, name, dollars_to_cents(args[-1]))
-            g = next(x for x in db.list_goals(conn) if x["id"] == gid)
+            g = _goal_by_id(conn, gid)
             await update.message.reply_text("🎯 Goal created:\n" + _describe_goal(g),
-                                            parse_mode=ParseMode.HTML)
+                                            parse_mode=ParseMode.HTML,
+                                            reply_markup=_goal_buttons(g))
             return
         if sub == "put":
             # /goal put Japan 200 — last token is the amount
@@ -1132,9 +1654,10 @@ async def cmd_goal(update, ctx: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(f"No unique goal match. Goals: {names}")
                 return
             db.add_contribution(conn, goal["id"], dollars_to_cents(args[-1]))
-            g = next(x for x in db.list_goals(conn) if x["id"] == goal["id"])
+            g = _goal_by_id(conn, goal["id"])
             await update.message.reply_text("💪 Added!\n" + _describe_goal(g),
-                                            parse_mode=ParseMode.HTML)
+                                            parse_mode=ParseMode.HTML,
+                                            reply_markup=_goal_buttons(g))
             return
         if sub in ("delete", "del", "remove", "rm"):
             if len(args) < 2 or not args[1].isdigit():
@@ -1145,14 +1668,32 @@ async def cmd_goal(update, ctx: ContextTypes.DEFAULT_TYPE):
                 f"🗑 Goal #{args[1]} deleted." if ok else f"No goal #{args[1]}.")
             return
         # default: list
-        goals = db.list_goals(conn)
-        if not goals:
+        goal_rows = goals.list_with_pace(conn)
+        if not goal_rows:
             await update.message.reply_text(
                 "No goals yet. Create one:\n/goal add Japan 3000\nThen contribute: /goal put Japan 200")
             return
-        await update.message.reply_text(
-            "🎯 <b>Savings goals</b>\n\n" + "\n\n".join(_describe_goal(g) for g in goals),
-            parse_mode=ParseMode.HTML)
+        await update.message.reply_text("🎯 <b>Savings goals</b>", parse_mode=ParseMode.HTML)
+        for g in goal_rows:
+            await update.message.reply_text(_describe_goal(g), parse_mode=ParseMode.HTML,
+                                            reply_markup=_goal_buttons(g))
+    finally:
+        conn.close()
+
+
+async def poll_portfolio() -> None:
+    """Refresh the Tiger portfolio cache. Never raises — a failed poll is
+    recorded in settings and shown as a stale-data banner, and the next tick
+    retries."""
+    if not tiger.configured():
+        return
+    conn = db.connect(DB_PATH)
+    try:
+        # tigeropen blocks; this scheduler runs on the Telegram event loop, so
+        # the fetch has to leave it.
+        await asyncio.to_thread(portfolio.refresh, conn)
+    except Exception as exc:
+        log.warning("portfolio poll failed: %s: %s", type(exc).__name__, exc)
     finally:
         conn.close()
 
@@ -1160,19 +1701,7 @@ async def cmd_goal(update, ctx: ContextTypes.DEFAULT_TYPE):
 async def _on_startup(app) -> None:
     """post_init hook — runs once inside the bot's event loop before polling starts.
     Lives only in expense-bot, so recurring rules post exactly once per due date."""
-    await app.bot.set_my_commands([
-        ("add", "Record a spend: /add 12.50 lunch at hawker"),
-        ("income", "Record income: /income 5000 salary"),
-        ("undo", "Delete the latest transaction"),
-        ("recent", "Show recent transactions"),
-        ("find", "Search transactions: /find kopi"),
-        ("summary", "Month spending by category"),
-        ("budget", "Show/set budgets: /budget Transport 300"),
-        ("trip", "Trip mode: new spends default to Travel"),
-        ("recurring", "Auto-logged expenses: add/list/delete"),
-        ("goal", "Savings goals: add/put/delete"),
-        ("help", "How everything works"),
-    ])
+    await app.bot.set_my_commands(BOT_COMMANDS)
     scheduler = AsyncIOScheduler(timezone="Asia/Singapore")
     scheduler.add_job(post_due_recurring, "cron", hour=0, minute=10, args=[app],
                       id="recurring-tick", replace_existing=True)
@@ -1185,6 +1714,13 @@ async def _on_startup(app) -> None:
                       id="daily-digest", replace_existing=True)
     scheduler.add_job(check_pace, "cron", hour=20, minute=0, args=[app],
                       id="pace-check", replace_existing=True)
+    # 0 means manual-only (refresh button). Guarded because APScheduler turns a
+    # zero interval into one second, so the obvious "off" value would poll the
+    # broker 60x a minute.
+    if tiger.configured() and PORTFOLIO_POLL_MINUTES > 0:
+        scheduler.add_job(poll_portfolio, "interval",
+                          minutes=PORTFOLIO_POLL_MINUTES,
+                          id="poll_portfolio", replace_existing=True)
     scheduler.start()
     app.bot_data["scheduler"] = scheduler
     await post_due_recurring(app)  # catch up anything missed while we were down
@@ -1214,10 +1750,16 @@ def main():
     app.add_handler(CommandHandler("trip", cmd_trip))
     app.add_handler(CommandHandler("recurring", cmd_recurring))
     app.add_handler(CommandHandler("goal", cmd_goal))
+    app.add_handler(CommandHandler("cards", cmd_cards))
+    app.add_handler(CommandHandler("merchants", cmd_merchants))
+    app.add_handler(CommandHandler("payslip", cmd_payslip))
     app.add_handler(CallbackQueryHandler(cb_fix, pattern=r"^fix:"))
     app.add_handler(CallbackQueryHandler(cb_setcat, pattern=r"^cat:"))
     app.add_handler(CallbackQueryHandler(cb_del, pattern=r"^del:"))
     app.add_handler(CallbackQueryHandler(cb_recdel, pattern=r"^recdel:"))
+    app.add_handler(CallbackQueryHandler(cb_card, pattern=r"^card:"))
+    app.add_handler(CallbackQueryHandler(cb_setcard, pattern=r"^cs:"))
+    app.add_handler(CallbackQueryHandler(cb_mforget, pattern=r"^mforget:"))
     app.add_handler(CallbackQueryHandler(cb_import_accept, pattern=r"^imp:"))
     app.add_handler(CallbackQueryHandler(cb_import_ignore, pattern=r"^ign:"))
     app.add_handler(CallbackQueryHandler(cb_reimb, pattern=r"^rm:"))
@@ -1226,6 +1768,10 @@ def main():
     app.add_handler(CallbackQueryHandler(cb_reimb_setcat, pattern=r"^rc:"))
     app.add_handler(CallbackQueryHandler(cb_reimb_back, pattern=r"^rmb:"))
     app.add_handler(CallbackQueryHandler(cb_goal_nudge, pattern=r"^gn:"))
+    app.add_handler(CallbackQueryHandler(cb_goal_ask, pattern=r"^gask:"))
+    app.add_handler(CallbackQueryHandler(cb_goal_pick, pattern=r"^(gcat|gpri):"))
+    app.add_handler(CallbackQueryHandler(cb_goal_set, pattern=r"^gset:"))
+    app.add_handler(CallbackQueryHandler(cb_goal_delete, pattern=r"^gdel:"))
     app.add_handler(CallbackQueryHandler(cb_quickadd, pattern=r"^qa:"))
     app.add_handler(CallbackQueryHandler(cb_editnote, pattern=r"^note:"))
     app.add_handler(MessageHandler(

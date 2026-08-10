@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Create account — Expenses</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+</head>
+<body>
+<div class="auth-wrap">
+  <form id="signup-form" class="card auth-card" autocomplete="on">
+    <h1>Create account</h1>
+    <div class="sub">3–32 characters. Password at least 8.</div>
+    <label>Username<input id="username" name="username" type="text"
+      autocomplete="username" required /></label>
+    <label>Password<input id="password" name="password" type="password"
+      autocomplete="new-password" required /></label>
+    <label>Confirm<input id="confirm" name="confirm" type="password"
+      autocomplete="new-password" required /></label>
+    <label id="code-row" class="hidden">Signup code<input id="code" type="text" /></label>
+    <div id="auth-error" class="auth-error hidden" role="alert"></div>
+    <button type="submit" class="primary">Create account</button>
+    <a class="linkish" href="/login">Back to sign in</a>
+  </form>
+</div>
+<script src="/auth.js"></script>
+</body>
+</html>

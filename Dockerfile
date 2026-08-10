@@ -7,7 +7,13 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # procps -> pgrep for the bot healthcheck; wget -> fetch Chart.js at build time.
-RUN apt-get update && apt-get install -y --no-install-recommends procps wget \
+# tesseract -> the payslip this was written against is a browser print pushed
+# through a GDI driver, which converts all of its text to vector outlines: the
+# PDF carries no text layer at all, so the only way to read it is to render
+# each page and OCR the bitmap. An embedded text layer is still preferred when
+# the document has one.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        procps wget tesseract-ocr tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

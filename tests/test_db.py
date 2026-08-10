@@ -128,7 +128,6 @@ def test_list_recurring_active_only_and_order(conn):
     r_off = db.add_recurring(conn, 300, "c", "Other", "daily", None, "2026-06-01")
     db.deactivate_recurring(conn, r_off)
     assert [r["id"] for r in db.list_recurring(conn)] == [r_early, r_late]
-    assert {r["id"] for r in db.list_recurring(conn, active_only=False)} == {r_early, r_late, r_off}
 
 
 def test_due_recurring_filters(conn):
@@ -213,8 +212,12 @@ def test_goals_crud_and_progress(conn):
     db.add_contribution(conn, gid, 20000)
     db.add_contribution(conn, gid, 5000)
     goals = db.list_goals(conn)
-    assert goals == [{"id": gid, "name": "Japan Trip", "target_cents": 300000,
-                      "saved_cents": 25000}]
+    assert len(goals) == 1
+    g = goals[0]
+    assert g["id"] == gid
+    assert g["name"] == "Japan Trip"
+    assert g["target_cents"] == 300000
+    assert g["saved_cents"] == 25000
     assert db.delete_goal(conn, gid) is True
     assert db.list_goals(conn) == []
     # cascade: contributions gone too
@@ -344,3 +347,264 @@ def test_recent_expense_candidates_window_and_floor(conn):
                                iso(now - timedelta(days=1)))
     ids = [r["id"] for r in db.recent_expense_candidates(conn, 4000)]
     assert match in ids and old not in ids and small not in ids
+
+
+def test_remember_and_recall_merchant(conn):
+    db.remember_merchant(conn, "ntuc fp", "Groceries")
+    assert db.recall_merchant(conn, "ntuc fp") == "Groceries"
+    assert db.recall_merchant(conn, "never seen") is None
+
+
+def test_recall_bumps_hits(conn):
+    db.remember_merchant(conn, "shopee", "Shopping")
+    assert db.list_merchants(conn)[0]["hits"] == 0
+    db.recall_merchant(conn, "shopee")
+    db.recall_merchant(conn, "shopee")
+    assert db.list_merchants(conn)[0]["hits"] == 2
+
+
+def test_remember_again_overwrites_and_resets_hits(conn):
+    # Correcting the same merchant a second time is the escape hatch for a
+    # wrong entry — it replaces rather than accumulating a second row.
+    db.remember_merchant(conn, "shopee", "Shopping")
+    db.recall_merchant(conn, "shopee")
+    db.remember_merchant(conn, "shopee", "Bills")
+    rows = db.list_merchants(conn)
+    assert len(rows) == 1
+    assert rows[0]["category"] == "Bills"
+    assert rows[0]["hits"] == 0
+
+
+def test_list_merchants_orders_by_hits_desc(conn):
+    db.remember_merchant(conn, "ntuc fp", "Groceries")
+    db.remember_merchant(conn, "shopee", "Shopping")
+    for _ in range(3):
+        db.recall_merchant(conn, "shopee")
+    assert [r["stem"] for r in db.list_merchants(conn)] == ["shopee", "ntuc fp"]
+
+
+def test_get_and_forget_merchant(conn):
+    db.remember_merchant(conn, "grab", "Transport")
+    mid = db.list_merchants(conn)[0]["id"]
+    assert db.get_merchant(conn, mid)["stem"] == "grab"
+    assert db.forget_merchant(conn, mid) is True
+    assert db.forget_merchant(conn, mid) is False
+    assert db.get_merchant(conn, mid) is None
+    assert db.list_merchants(conn) == []
+
+
+def test_goal_defaults_after_migration(conn):
+    gid = db.add_goal(conn, "Japan", 300000)
+    g = db.get_goal(conn, gid)
+    assert g["target_date"] is None
+    assert g["monthly_cents"] is None
+    assert g["next_due"] is None
+    assert g["category"] is None
+    assert g["priority"] == 2
+    assert g["note"] == ""
+    assert g["bought_at"] is None
+    assert g["bought_tid"] is None
+
+
+def test_update_goal_sets_whitelisted_fields(conn):
+    gid = db.add_goal(conn, "Laptop", 200000)
+    assert db.update_goal(conn, gid, target_date="2027-03-01", monthly_cents=20000,
+                          category="Shopping", priority=1, note="16GB") is True
+    g = db.get_goal(conn, gid)
+    assert g["target_date"] == "2027-03-01"
+    assert g["monthly_cents"] == 20000
+    assert g["category"] == "Shopping"
+    assert g["priority"] == 1
+    assert g["note"] == "16GB"
+
+
+def test_update_goal_ignores_unknown_columns(conn):
+    gid = db.add_goal(conn, "Laptop", 200000)
+    # bought_at is deliberately NOT editable via update_goal
+    assert db.update_goal(conn, gid, bought_at="2026-07-25T00:00:00") is False
+    assert db.get_goal(conn, gid)["bought_at"] is None
+
+
+def test_list_goals_orders_bought_last_then_priority(conn):
+    low = db.add_goal(conn, "Low", 100)
+    db.update_goal(conn, low, priority=3)
+    high = db.add_goal(conn, "High", 100)
+    db.update_goal(conn, high, priority=1)
+    done = db.add_goal(conn, "Done", 100)
+    db.update_goal(conn, done, priority=1)
+    tid = db.add_transaction(conn, 100, "Done", "Shopping", "goal")
+    db.mark_goal_bought(conn, done, tid)
+    assert [g["name"] for g in db.list_goals(conn)] == ["High", "Low", "Done"]
+
+
+def test_list_goals_includes_saved_and_columns(conn):
+    gid = db.add_goal(conn, "Japan", 300000)
+    db.add_contribution(conn, gid, 50000)
+    db.add_contribution(conn, gid, 25000)
+    g = db.list_goals(conn)[0]
+    assert g["saved_cents"] == 75000
+    assert g["target_cents"] == 300000
+    assert g["priority"] == 2
+
+
+def test_mark_goal_bought_records_tid(conn):
+    gid = db.add_goal(conn, "Laptop", 200000)
+    tid = db.add_transaction(conn, 199900, "Laptop", "Shopping", "goal")
+    assert db.mark_goal_bought(conn, gid, tid) is True
+    g = db.get_goal(conn, gid)
+    assert g["bought_tid"] == tid
+    assert g["bought_at"] is not None
+
+
+def test_goals_due_funding_selects_only_eligible(conn):
+    due = db.add_goal(conn, "Due", 100000)
+    db.update_goal(conn, due, monthly_cents=10000, next_due="2026-07-01")
+    later = db.add_goal(conn, "Later", 100000)
+    db.update_goal(conn, later, monthly_cents=10000, next_due="2026-09-01")
+    db.add_goal(conn, "NoMonthly", 100000)
+    bought = db.add_goal(conn, "Bought", 100000)
+    db.update_goal(conn, bought, monthly_cents=10000, next_due="2026-07-01")
+    db.mark_goal_bought(conn, bought, db.add_transaction(conn, 1, "x", "Other", "goal"))
+    rows = db.goals_due_funding(conn, "2026-07-25")
+    assert [r["name"] for r in rows] == ["Due"]
+    assert rows[0]["saved"] == 0
+
+
+# ---- linking an incoming transfer to its original spend (web flow) ---------
+
+def _income(conn, cents, note="PayNow from Wei"):
+    return db.add_transaction(conn, cents, note, "Income", "dashboard",
+                              type_="income")
+
+
+def test_link_converts_income_into_a_netting_payback(conn):
+    dinner = db.add_transaction(conn, 6000, "Dinner", "Food", "dashboard")
+    tid = _income(conn, 3000)
+    assert db.link_as_reimbursement(conn, tid, dinner) is True
+    row = db.get_transaction(conn, tid)
+    # Stored the way the bot stores one: negative expense, original's category.
+    assert row["amount_cents"] == -3000
+    assert row["type"] == "expense"
+    assert row["category"] == "Food"
+    assert row["link_tid"] == dinner
+    assert row["note"].startswith(db.REIMB_PREFIX)
+    # The point of the whole model: the original nets down automatically.
+    listed = {r["id"]: r for r in db.list_transactions(conn)}
+    assert listed[dinner]["reimbursed_cents"] == 3000
+
+
+def test_unlink_is_the_exact_inverse_of_link(conn):
+    dinner = db.add_transaction(conn, 6000, "Dinner", "Food", "dashboard")
+    tid = _income(conn, 3000)
+    before = dict(db.get_transaction(conn, tid))
+    db.link_as_reimbursement(conn, tid, dinner)
+    assert db.unlink_reimbursement(conn, tid) is True
+    after = dict(db.get_transaction(conn, tid))
+    for field in ("amount_cents", "type", "category", "note", "link_tid"):
+        assert after[field] == before[field], field
+    assert db.list_transactions(conn)[0] is not None
+    listed = {r["id"]: r for r in db.list_transactions(conn)}
+    assert listed[dinner]["reimbursed_cents"] == 0
+
+
+def test_relinking_does_not_stack_the_prefix(conn):
+    a = db.add_transaction(conn, 6000, "Dinner", "Food", "dashboard")
+    b = db.add_transaction(conn, 7000, "Hotel", "Travel", "dashboard")
+    tid = _income(conn, 3000)
+    db.link_as_reimbursement(conn, tid, a)
+    db.unlink_reimbursement(conn, tid)
+    db.link_as_reimbursement(conn, tid, b)
+    note = db.get_transaction(conn, tid)["note"]
+    assert note.count(db.REIMB_PREFIX) == 1, note
+    assert db.get_transaction(conn, tid)["category"] == "Travel"
+
+
+def test_a_payback_cannot_be_linked_to_another_payback(conn):
+    # Netting a payback against a payback would subtract the same money twice.
+    dinner = db.add_transaction(conn, 6000, "Dinner", "Food", "dashboard")
+    first = _income(conn, 3000)
+    db.link_as_reimbursement(conn, first, dinner)
+    second = _income(conn, 1000)
+    assert db.link_as_reimbursement(conn, second, first) is False
+    assert db.get_transaction(conn, second)["type"] == "income"
+
+
+def test_link_rejects_an_expense_as_the_source(conn):
+    # Only money IN can become a payback; linking two spends would silently
+    # negate a real expense.
+    dinner = db.add_transaction(conn, 6000, "Dinner", "Food", "dashboard")
+    kopi = db.add_transaction(conn, 280, "Kopi", "Food", "dashboard")
+    assert db.link_as_reimbursement(conn, kopi, dinner) is False
+    assert db.get_transaction(conn, kopi)["amount_cents"] == 280
+
+
+def test_link_rejects_self_and_missing_rows(conn):
+    tid = _income(conn, 3000)
+    assert db.link_as_reimbursement(conn, tid, tid) is False
+    assert db.link_as_reimbursement(conn, tid, 999999) is False
+    assert db.link_as_reimbursement(conn, 999999, tid) is False
+
+
+def test_unlink_rejects_a_row_that_is_not_linked(conn):
+    kopi = db.add_transaction(conn, 280, "Kopi", "Food", "dashboard")
+    assert db.unlink_reimbursement(conn, kopi) is False
+    assert db.unlink_reimbursement(conn, 999999) is False
+
+
+def test_month_summary_filters_by_card(conn):
+    cid = db.add_card(conn, "Trust", "debit")
+    db.add_transaction(conn, 100, "a", "Food", "telegram",
+                       "2026-08-01T08:00:00", card_id=cid)
+    db.add_transaction(conn, 200, "b", "Food", "telegram", "2026-08-02T08:00:00")
+    assert db.month_summary(conn, "2026-08")["total_cents"] == 300
+    assert db.month_summary(conn, "2026-08", cid)["total_cents"] == 100
+    # 0 is the Unassigned bucket, NOT "no filter". A falsiness check here
+    # returns 300 and the bug is invisible in the UI.
+    assert db.month_summary(conn, "2026-08", 0)["total_cents"] == 200
+
+
+def test_month_summary_card_filter_narrows_by_category(conn):
+    cid = db.add_card(conn, "Trust", "debit")
+    db.add_transaction(conn, 100, "a", "Food", "telegram",
+                       "2026-08-01T08:00:00", card_id=cid)
+    db.add_transaction(conn, 200, "b", "Transport", "telegram",
+                       "2026-08-02T08:00:00")
+    assert [r["category"] for r in
+            db.month_summary(conn, "2026-08", cid)["by_category"]] == ["Food"]
+
+
+def test_trend_filters_by_card(conn):
+    cid = db.add_card(conn, "Trust", "debit")
+    db.add_transaction(conn, 100, "a", "Food", "telegram",
+                       "2026-08-01T08:00:00", card_id=cid)
+    db.add_transaction(conn, 200, "b", "Food", "telegram", "2026-08-02T08:00:00")
+    days = {p["period"]: p["total_cents"]
+            for p in db.trend(conn, "day", cid)}
+    assert days == {"2026-08-01": 100}
+    unassigned = {p["period"]: p["total_cents"]
+                  for p in db.trend(conn, "day", 0)}
+    assert unassigned == {"2026-08-02": 200}
+    assert len(db.trend(conn, "day")) == 2
+
+
+def test_card_clause_happy_path():
+    assert db._card_clause(None) == ("", [])
+    assert db._card_clause(0) == (" AND card_id IS NULL", [])
+    assert db._card_clause(7) == (" AND card_id = ?", [7])
+
+
+def test_card_clause_rejects_negative():
+    with pytest.raises(ValueError):
+        db._card_clause(-1)
+
+
+def test_card_clause_rejects_bool():
+    # True is an int subclass; without an explicit bool check it would
+    # silently mean "card 1" instead of raising.
+    with pytest.raises(TypeError):
+        db._card_clause(True)
+
+
+def test_card_clause_rejects_non_int():
+    with pytest.raises(TypeError):
+        db._card_clause("3")

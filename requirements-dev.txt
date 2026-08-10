@@ -1,3 +1,7 @@
 -r requirements.txt
 pytest==8.3.4
 httpx==0.28.1
+esprima==4.0.1
+# Builds a genuinely password-protected PDF so the payslip decrypt path is
+# exercised for real, not just its parsers. pypdf can encrypt but not author.
+reportlab==4.2.5

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Sign in — Expenses</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+</head>
+<body>
+<div class="auth-wrap">
+  <form id="login-form" class="card auth-card" autocomplete="on">
+    <h1>Expenses</h1>
+    <div class="sub">Sign in to continue</div>
+    <label>Username<input id="username" name="username" type="text"
+      autocomplete="username" required /></label>
+    <label>Password<input id="password" name="password" type="password"
+      autocomplete="current-password" required /></label>
+    <div id="auth-error" class="auth-error hidden" role="alert"></div>
+    <button type="submit" class="primary">Sign in</button>
+    <a id="signup-link" class="linkish hidden" href="/signup">Create an account</a>
+  </form>
+</div>
+<script src="/auth.js"></script>
+</body>
+</html>

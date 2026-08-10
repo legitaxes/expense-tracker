@@ -10,20 +10,36 @@ Shapes (from real emails):
 Trust (from_us@trustbank.sg):
   local card : You've spent SGD 3.39 at BUS/MRT SG on 9 Jul 2026 06:24SGT with Trust Link card.
   overseas   : You've spent SGD 82.69 at Steam ... with Trust Link card on 6 Jul 2026 22:11SGT.
-  paynow out : Your PayNow transfer of SGD 7.00 from A/C ending 1234 to NAME on 09 Jul 2026 14:56 SGT is successful.
+  paynow out : Your PayNow transfer of SGD 7.00 from A/C ending 5678 to NAME on 09 Jul 2026 14:56 SGT is successful.
   cancelled  : We've cancelled your purchase of SGD 18.50 at Grab* A-XXXX ... on 12 Jun 2026 22:20SGT ...
 
 Grab (no-reply@grab.com, subject "Your Grab E-Receipt"):
   food/mart  : TOTAL SGD 1.40 DATE | TIME 10 Jul 26 12:18 +0800 ... Vehicle type: GrabFood ... Order from: Coke&Go Cooler 123456789 - <address> Profile: ...
+               ... Payment Method: MasterCard Description: ...   (brand, no digits)
   ride       : Total Paid SGD 17.70 ... Picked up on 12 June 2026 ...
+               ... Paid by 1234 17.70        (a card: last 4 digits only)
+               ... Paid by ApplePayLC 17.70  (a wallet: its name)
+  Two live templates from one sender, so the same card reads "MasterCard" on
+  food and "1234" on a ride — two instruments, one card, which is what the
+  (source, token) binding key is for.
 
 PayLah (paylah.alert@dbs.com, subject "Transaction Alerts") — one table for all
 of Scan & Pay / Transfer / Bill Payment (note: no YEAR in the body):
   Date & Time: 03 Jul 13:40 (SGT)  Amount: SGD1.60
-  From: PayLah! Wallet (Mobile ending 1111)  To: KOPITIAM KAYA TOAST
+  From: PayLah! Wallet (Mobile ending 1111)  To: EXAMPLE FOOD COURT STALL
+
+  refund (2021 template, wallet on the To side; → NEGATIVE expense):
+  Date & Time: 05 Aug22:12 (SGT)  Amount: SGD 0.10
+  From: BCRS LTD  To: PayLah! Wallet (Mobile ending 1111)
+
+  PayLah never mails about money coming IN from a person. A PayNow credit
+  lands in the linked DBS/POSB account, so that alert arrives from DBS_SENDER:
+  "You have received SGD 1.70 via PayNow on 06 Aug 2026 09:31 SGT.
+   From: JORDAN LEE WEI  To: Your DBS/ POSB account ending 1234"
+  → suggest_income (never auto-imported), noted with the payer's name.
 
 FairPrice Group app (no-reply@fairprice.com.sg, subject "...app receipt"):
-  "Summary Total $6.70 Paid By $6.70 Apple Pay (**** 1234)" — no store, no time.
+  "Summary Total $6.70 Paid By $6.70 Apple Pay (**** 4242)" — no store, no time.
 
 ShopBack Pay (hello@info.shopback.sg, subject "Your ShopBack Pay receipt - $X"):
   "payment you made at <merchant> using ShopBack Pay ... Payment date
@@ -55,6 +71,13 @@ PAYLAH_SENDER = "paylah.alert@dbs.com"
 FAIRPRICE_SENDER = "no-reply@fairprice.com.sg"
 SHOPBACK_SENDER = "hello@info.shopback.sg"
 DBS_SENDER = "ibanking.alert@dbs.com"
+# Your payroll provider's address, supplied via PAYSLIP_SENDER (empty = the
+# payslip feature is off). Deliberately NOT in SOURCES below: SOURCES is the
+# allowlist merchant-memory learns from, and payroll text is not a merchant.
+# It is also not a transaction source -- payslips are archived for reference,
+# never inserted as income (the bank credit alert already covers that, and a
+# second row would double-count).
+PAYSLIP_SENDER = ""
 
 # Telegram label + DB `source` value per sender.
 SOURCES = {
@@ -91,21 +114,79 @@ _TRUST_CANCELLED_RE = re.compile(
     r"cancelled your purchase of SGD ([\d,]+\.\d{2}) at (.+?) on "
     r"\d{1,2} \w{3} \d{4}")
 
+# Grab is not consistent about how it writes the currency: GrabFood receipts
+# say "SGD 1.40" while ride receipts say "S$35.30" (symbol, no space). A
+# pattern hard-coded to one spelling silently stops matching the other -- which
+# is exactly what happened to rides on 31 Jul 2026. Both forms, one fragment.
+_SGD = r"(?:SGD|S\$|\$)\s?"
+
 _GRAB_FOOD_RE = re.compile(
-    r"TOTAL SGD ([\d,]+\.\d{2}) DATE \| TIME (\d{1,2} \w{3} \d{2}) (\d{2}:\d{2})")
+    r"TOTAL " + _SGD + r"([\d,]+\.\d{2}) DATE \| TIME (\d{1,2} \w{3} \d{2}) (\d{2}:\d{2})")
 _GRAB_VEHICLE_RE = re.compile(r"Vehicle type: (\w+)")
 # Merchant runs until the numeric store ID; fall back to the next fixed label.
 _GRAB_MERCHANT_RES = (re.compile(r"Order from: (.+?) \d{5,}"),
                       re.compile(r"Order from: (.+?) Profile:"))
-_GRAB_RIDE_RE = re.compile(r"Total Paid SGD ([\d,]+\.\d{2})")
+# The currency marker is REQUIRED here, not optional. A ride receipt restates
+# "Total Paid 35.30" further down in the fare breakdown with no currency, and
+# lists "Fare 33.20" above it; requiring the marker is what pins this to the
+# headline figure rather than a breakdown row.
+_GRAB_RIDE_RE = re.compile(r"Total Paid " + _SGD + r"([\d,]+\.\d{2})")
+# Read off three real receipts (2 rides + 1 food, 12 Jun / 10 Jul / 31 Jul 2026)
+# AFTER _to_text, because that is what parse_grab_email actually sees.
+#
+# Rides say "Paid by", then ONE cell, then the amount again:
+#     "Paid by 1234 24.10"          <- a card: only the LAST 4 DIGITS
+#     "Paid by ApplePayLC 17.70"    <- a wallet: its name
+# The card BRAND is not recoverable here. It lives only in the payment icon's
+# alt attribute (<img src=".../visa.png" alt="Visa">), and _to_text drops
+# attributes with the tags. Recovering it would mean parsing the raw HTML
+# before the strip; the last 4 digits are the better card discriminator anyway
+# (they separate two Visas, which the brand cannot).
+#
+# The trailing amount is what bounds the capture -- it is a THIRD restatement
+# of the total, after the headline and the breakdown, so it is reliably there.
+_GRAB_PAY_RE = re.compile(r"Paid by\s+(.+?)\s+[\d,]+\.\d{2}")
+# GrabFood is a different template entirely -- an older one, still live. It
+# names the brand and never the digits, so the same card reads "MasterCard"
+# here and "1234" on a ride. Those learn as two separate instruments against
+# the same card, which the (source, token) key handles: the user corrects each
+# once. Anchored on "Description:" because the value carries no delimiter.
+_GRAB_FOOD_PAY_RE = re.compile(r"Payment Method:\s*(.+?)\s+Description:")
 
-_PAYLAH_AMOUNT_RE = re.compile(r"Amount: SGD([\d,]+\.\d{2})")
-_PAYLAH_DT_RE = re.compile(r"Date & Time: (\d{1,2} \w{3}) (\d{1,2}:\d{2}) \(SGT\)")
+# Which instrument paid. Extracted verbatim -- normalisation happens in
+# app/cards.py, so a change to the key format never touches the parsers.
+# ".+?" (not "\w+") after "Trust" -- the card name can be more than one word
+# (e.g. a future "Trust Cashback Plus card"), and a single-token capture would
+# silently truncate it instead of failing loudly.
+_TRUST_CARD_RE = re.compile(r"with (Trust .+?) card")
+_ACCT_RE = re.compile(r"A/C ending (\d+)")
+_FP_PAID_RE = re.compile(r"Paid By \$[\d,]+\.\d{2} (.+?\(\*+\s?\d{4}\))")
+
+# DBS runs TWO alert templates and they space these fields differently. The
+# 2018 table template (outgoing PayLah) prints "SGD1.60" and "03 Jul 13:40";
+# the 2021 <p>/<br> template (refunds, incoming credits) prints "SGD 0.10" and
+# — because the <br> between the date and the time strips to nothing —
+# "05 Aug22:12". Both spacings are optional here so neither template is a
+# cliff; pinning to one silently drops every mail written in the other.
+_PAYLAH_AMOUNT_RE = re.compile(r"Amount: SGD\s?([\d,]+\.\d{2})")
+_PAYLAH_DT_RE = re.compile(
+    r"Date & Time: (\d{1,2} \w{3})\s*(\d{1,2}:\d{2}) \(SGT\)")
 _PAYLAH_TO_RE = re.compile(r"To: (.+?) To view your transactions")
+# On a refund the wallet is the destination, so the counterparty is the From
+# side instead. Terminated on the wallet line rather than a trailing phrase.
+_PAYLAH_FROM_RE = re.compile(r"From: (.+?) To: PayLah! Wallet")
 # DBS iBanking PAYNOW uses the same Date&Time/Amount table; only the To
 # terminator and the recipient-suffix style ("UEN ending") differ.
 _DBS_TO_RE = re.compile(r"To: (.+?) If unauthorised")
 _ENDING_RE = re.compile(r"\s*\((?:Mobile|UEN) ending [^)]*\)$")
+
+# Incoming PayNow — a credit lands in the linked DBS/POSB account, never in the
+# PayLah wallet, so this arrives from ibanking.alert@dbs.com and in a shape of
+# its own (a sentence, not the Date&Time table).
+_DBS_RECEIVED_RE = re.compile(
+    r"You have received SGD\s?([\d,]+\.\d{2}) via PayNow on "
+    r"(\d{1,2} \w{3} \d{4}) (\d{1,2}:\d{2})\s*SGT")
+_DBS_PAYER_RE = re.compile(r"From: (.+?) To: Your DBS")
 
 # "Summary Total $6.70 Paid By $6.70 ..." — anchor on "Summary Total" so the
 # "Total savings" row can't be mistaken for the amount.
@@ -139,13 +220,26 @@ def _to_text(html_body: str) -> str:
     return _WS_RE.sub(" ", html.unescape(_TAG_RE.sub(" ", html_body))).strip()
 
 
+def _first(*patterns, text: str) -> str:
+    """First pattern that matches, or "". Both Grab templates are tried on both
+    branches: the food/ride split keys off the AMOUNT layout, which is not
+    guaranteed to move in lockstep with the payment block if Grab migrates one
+    template and not the other."""
+    for pat in patterns:
+        m = pat.search(text)
+        if m:
+            return m.group(1).strip()
+    return ""
+
+
 def _cents(amount: str) -> int:
     return int(round(float(amount.replace(",", "")) * 100))
 
 
 def parse_trust_email(subject: str, html_body: str) -> dict | None:
-    """Return {amount_cents, note, created_at, kind} for a spend/transfer email,
-    or None if the body matches no known transaction shape."""
+    """Return {amount_cents, note, created_at, kind, instrument} for a
+    spend/transfer email, or None if the body matches no known transaction
+    shape."""
     text = _to_text(html_body)
     for pat, kind in _PATTERNS:
         m = pat.search(text)
@@ -153,11 +247,16 @@ def parse_trust_email(subject: str, html_body: str) -> dict | None:
             continue
         amount, name, d, t = m.groups()
         dt = datetime.strptime(f"{d} {t}", "%d %b %Y %H:%M")
+        m_card = _TRUST_CARD_RE.search(text)
+        m_acct = _ACCT_RE.search(text)
+        instrument = (f"{m_card.group(1)} card" if m_card
+                      else f"A/C ending {m_acct.group(1)}" if m_acct else "")
         return {
             "amount_cents": _cents(amount),
             "note": name.strip(),
             "created_at": dt.strftime("%Y-%m-%dT%H:%M:%S"),
             "kind": kind,
+            "instrument": instrument,
         }
     return None
 
@@ -191,6 +290,7 @@ def parse_grab_email(subject: str, html_body: str, msg_dt: datetime) -> dict | N
             "note": f"{label} {merchant}".strip(),
             "created_at": dt.strftime("%Y-%m-%dT%H:%M:%S"),
             "kind": "grab",
+            "instrument": _first(_GRAB_FOOD_PAY_RE, _GRAB_PAY_RE, text=text),
         }
     m = _GRAB_RIDE_RE.search(text)
     if m:
@@ -199,20 +299,46 @@ def parse_grab_email(subject: str, html_body: str, msg_dt: datetime) -> dict | N
             "note": "Grab ride",
             "created_at": msg_dt.strftime("%Y-%m-%dT%H:%M:%S"),
             "kind": "grab",
+            "instrument": _first(_GRAB_PAY_RE, _GRAB_FOOD_PAY_RE, text=text),
         }
+    return None
+
+
+def _paylah_direction(text: str) -> str | None:
+    """"out" for a wallet spend, "refund" for money coming back, else None.
+
+    The wallet sits on one side of every alert; which side it is on is the only
+    thing that says which way the money moved.
+    """
+    if "From: PayLah! Wallet" in text:
+        return "out"
+    if "To: PayLah! Wallet" in text:
+        return "refund"
     return None
 
 
 def parse_paylah_email(subject: str, html_body: str, msg_dt: datetime) -> dict | None:
     """PayLah! alert → transaction. One shape covers Scan & Pay / Transfer /
-    Bill Payment. Only outgoing wallet spends (From: PayLah! Wallet) count."""
+    Bill Payment.
+
+    Money out of the wallet is a spend. Money back INTO it is a merchant
+    refund, recorded as a NEGATIVE expense so it nets against the original
+    spend — the same shape as a reimbursement. Filing it as income instead
+    would let deposit refunds inflate the income figures.
+
+    Note PayLah never mails about a P2P credit: incoming PayNow lands in the
+    linked bank account, so that alert comes from DBS_SENDER (see
+    `suggest_income`), not here.
+    """
     text = _to_text(html_body)
-    if "From: PayLah! Wallet" not in text:
-        return None  # top-up / incoming money / non-transaction notice
+    direction = _paylah_direction(text)
+    if direction is None:
+        return None  # top-up / linkage notice / non-transaction
     ma = _PAYLAH_AMOUNT_RE.search(text)
     md = _PAYLAH_DT_RE.search(text)
-    mto = _PAYLAH_TO_RE.search(text)
-    if not (ma and md and mto):
+    # On a refund the wallet is the To side, so the counterparty is the From.
+    mparty = (_PAYLAH_TO_RE if direction == "out" else _PAYLAH_FROM_RE).search(text)
+    if not (ma and md and mparty):
         return None
     day_month, hm = md.groups()
     # The body has no year. Assume the email's year; if that lands in the
@@ -220,11 +346,13 @@ def parse_paylah_email(subject: str, html_body: str, msg_dt: datetime) -> dict |
     dt = datetime.strptime(f"{day_month} {msg_dt.year} {hm}", "%d %b %Y %H:%M")
     if dt > msg_dt + timedelta(days=2):
         dt = dt.replace(year=dt.year - 1)
+    cents = _cents(ma.group(1))
     return {
-        "amount_cents": _cents(ma.group(1)),
-        "note": _ENDING_RE.sub("", mto.group(1).strip()),
+        "amount_cents": cents if direction == "out" else -cents,
+        "note": _ENDING_RE.sub("", mparty.group(1).strip()),
         "created_at": dt.strftime("%Y-%m-%dT%H:%M:%S"),
-        "kind": "paylah",
+        "kind": "paylah" if direction == "out" else "paylah-refund",
+        "instrument": "PayLah! Wallet",
     }
 
 
@@ -244,11 +372,14 @@ def parse_dbs_email(subject: str, html_body: str, msg_dt: datetime) -> dict | No
     dt = datetime.strptime(f"{day_month} {msg_dt.year} {hm}", "%d %b %Y %H:%M")
     if dt > msg_dt + timedelta(days=2):
         dt = dt.replace(year=dt.year - 1)
+    m_acct = _ACCT_RE.search(text)
+    instrument = f"A/C ending {m_acct.group(1)}" if m_acct else ""
     return {
         "amount_cents": _cents(ma.group(1)),
         "note": _ENDING_RE.sub("", mto.group(1).strip()),
         "created_at": dt.strftime("%Y-%m-%dT%H:%M:%S"),
         "kind": "dbs-paynow",
+        "instrument": instrument,
     }
 
 
@@ -261,11 +392,14 @@ def parse_fairprice_email(subject: str, html_body: str, msg_dt: datetime) -> dic
     m = _FP_TOTAL_RE.search(_to_text(html_body))
     if not m:
         return None
+    m_paid = _FP_PAID_RE.search(_to_text(html_body))
+    instrument = m_paid.group(1).strip() if m_paid else ""
     return {
         "amount_cents": _cents(m.group(1)),
         "note": "FairPrice",
         "created_at": msg_dt.strftime("%Y-%m-%dT%H:%M:%S"),
         "kind": "fairprice",
+        "instrument": instrument,
     }
 
 
@@ -286,6 +420,7 @@ def parse_shopback_email(subject: str, html_body: str, msg_dt: datetime) -> dict
         "note": mm.group(1).strip() if mm else "ShopBack Pay",
         "created_at": dt.strftime("%Y-%m-%dT%H:%M:%S"),
         "kind": "shopback",
+        "instrument": "ShopBack Pay",
     }
 
 
@@ -303,16 +438,32 @@ def suggest_receipt(sender: str, subject: str, html_body: str) -> dict | None:
 
 def suggest_income(sender: str, subject: str, html_body: str) -> dict | None:
     """Incoming-money alert from a known bank sender → suggest as income.
-    Returns {amount_cents, note} or None."""
+
+    Returns {amount_cents, note, created_at} or None. `created_at` is None when
+    the shape carries no timestamp of its own and the caller should fall back to
+    the email's own arrival time.
+    """
     if sender not in (PAYLAH_SENDER, DBS_SENDER, TRUST_SENDER):
         return None
     text = _to_text(html_body)
+    m = _DBS_RECEIVED_RE.search(text)
+    if m:
+        # The specific PayNow-credit shape: it names the payer and states the
+        # transaction time. Both beat the generic fallback below, where every
+        # credit reads as the same subject line and is told apart only by
+        # amount — useless when two paybacks land the same morning.
+        mp = _DBS_PAYER_RE.search(text)
+        dt = datetime.strptime(f"{m.group(2)} {m.group(3)}", "%d %b %Y %H:%M")
+        return {"amount_cents": _cents(m.group(1)),
+                "note": mp.group(1).strip() if mp else subject.strip()[:80],
+                "created_at": dt.strftime("%Y-%m-%dT%H:%M:%S")}
     if not _RECEIVED_RE.search(text):
         return None
     m = _ANY_SGD_RE.search(text)
     if not m:
         return None
-    return {"amount_cents": _cents(m.group(1)), "note": subject.strip()[:80]}
+    return {"amount_cents": _cents(m.group(1)), "note": subject.strip()[:80],
+            "created_at": None}
 
 
 def is_spend_email(html_body: str) -> bool:
@@ -323,16 +474,26 @@ def is_spend_email(html_body: str) -> bool:
 
 
 def classify_email(sender: str, subject: str, html_body: str,
-                   msg_dt: datetime) -> tuple[str, dict | None]:
+                   msg_dt: datetime, attachments: tuple = (),
+                   payslip_sender: str = PAYSLIP_SENDER) -> tuple[str, dict | None]:
     """Route one fetched email. Returns (action, payload):
       ("import", parsed)  — insert as a transaction
       ("cancelled", info) — Trust refunded a spend; warn, don't insert
       ("suggest", info)   — unknown sender, looks like a receipt; ask the user
       ("suggest_income", info) — known bank sender, looks like incoming money;
                                   ask the user (never auto-imported)
+      ("payslip", info)   — payroll mail with a PDF; archive it, no transaction
       ("unparsed", None)  — looks like a real transaction but no pattern matched
       ("skip", None)      — not a transaction (or a deduped Trust alert)
     """
+    if payslip_sender and sender == payslip_sender:
+        # Matched on sender + a PDF part, never on subject: the subject carries
+        # a per-request number ("Payslip Request 12345678"), not the pay month.
+        pdf = next(((fn, data) for fn, data in attachments
+                    if fn.lower().endswith(".pdf")), None)
+        if pdf is None:
+            return "skip", None  # payroll correspondence with no payslip attached
+        return "payslip", {"filename": pdf[0], "data": pdf[1]}
     if sender == GRAB_SENDER:
         parsed = parse_grab_email(subject, html_body, msg_dt)
         if parsed:
@@ -342,7 +503,9 @@ def classify_email(sender: str, subject: str, html_body: str,
         parsed = parse_paylah_email(subject, html_body, msg_dt)
         if parsed:
             return "import", parsed
-        if "From: PayLah! Wallet" in _to_text(html_body):
+        if _paylah_direction(_to_text(html_body)) is not None:
+            # The wallet is named on one side, so this WAS a real movement of
+            # money and a pattern broke — surface it rather than skipping.
             return "unparsed", None
         info = suggest_income(sender, subject, html_body)
         return ("suggest_income", info) if info else ("skip", None)
@@ -391,7 +554,23 @@ def classify_email(sender: str, subject: str, html_body: str,
 # regex pass.
 
 
-def _extract(msg) -> tuple[str, str, str, datetime]:
+def _pdf_attachments(msg) -> list[tuple[str, bytes]]:
+    """[(filename, bytes)] for every application/pdf part.
+
+    Only called for senders the caller asked about — decoding base64 payloads
+    for every promotional mail that happens to carry a PDF is wasted work.
+    """
+    out = []
+    for part in msg.walk() if msg.is_multipart() else [msg]:
+        if part.get_content_type() != "application/pdf":
+            continue
+        data = part.get_payload(decode=True)
+        if data:
+            out.append((part.get_filename() or "payslip.pdf", data))
+    return out
+
+
+def _extract(msg, want_attachments: bool = False) -> tuple[str, str, str, datetime, list]:
     sender = email.utils.parseaddr(msg["From"] or "")[1].lower()
     subject = str(email.header.make_header(email.header.decode_header(msg["Subject"] or "")))
     body = ""
@@ -405,7 +584,8 @@ def _extract(msg) -> tuple[str, str, str, datetime]:
             .astimezone(_SGT).replace(tzinfo=None)
     except (TypeError, ValueError):
         msg_dt = datetime.now()
-    return sender, subject, body, msg_dt
+    attachments = _pdf_attachments(msg) if want_attachments else []
+    return sender, subject, body, msg_dt, attachments
 
 
 def _login(host, user, password):
@@ -433,16 +613,23 @@ def seed_max_uid(host: str, user: str, password: str) -> tuple[int, int]:
         imap.logout()
 
 
-def fetch_since(host: str, user: str, password: str, last_uid: int):
-    """Return (uidvalidity, [(uid, sender, subject, html, msg_dt), ...]) for
-    ALL inbox emails with UID > last_uid, sorted ascending. Bodies fetched
-    read-only (inbox unchanged)."""
+def fetch_since(host: str, user: str, password: str, last_uid: int,
+                attachment_senders: tuple = ()):
+    """Return (uidvalidity, [(uid, sender, subject, html, msg_dt, attachments)])
+    for ALL inbox emails with UID > last_uid, sorted ascending. Bodies fetched
+    read-only (inbox unchanged).
+
+    `attachment_senders` lists senders whose PDF attachments should be decoded;
+    for everyone else `attachments` is empty. The full RFC822 message is
+    downloaded either way (it always was), so this costs no extra network —
+    it only avoids base64-decoding attachments nobody asked for.
+    """
     imap = _login(host, user, password)
     try:
         _, [meta] = imap.select("INBOX", readonly=True)
         validity = int(dict(re.findall(rb"(\w+) (\S+)", meta)).get(b"UIDVALIDITY", b"0"))
         _, [data] = imap.uid("search", None, f"(UID {last_uid + 1}:*)")
-        # ponytail: IMAP returns the highest UID even when none actually exceed
+        # IMAP returns the highest UID even when none actually exceed
         # last_uid (the `N:*` quirk) — so filter explicitly.
         uids = sorted(u for u in (int(x) for x in data.split()) if u > last_uid)
         out = []
@@ -451,8 +638,46 @@ def fetch_since(host: str, user: str, password: str, last_uid: int):
             if not fetched or not fetched[0]:
                 continue
             msg = email.message_from_bytes(fetched[0][1])
-            sender, subject, body, msg_dt = _extract(msg)
-            out.append((uid, sender, subject, body, msg_dt))
+            peek = email.utils.parseaddr(msg["From"] or "")[1].lower()
+            sender, subject, body, msg_dt, attachments = _extract(
+                msg, want_attachments=peek in attachment_senders)
+            out.append((uid, sender, subject, body, msg_dt, attachments))
+        return validity, out
+    finally:
+        imap.logout()
+
+
+_ADDR_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+
+
+def fetch_from_sender(host: str, user: str, password: str, sender: str,
+                      limit: int = 5):
+    """Return the newest `limit` inbox emails from `sender`, oldest first, as
+    (uid, sender, subject, html, msg_dt, attachments) — the same shape as
+    `fetch_since`, but selected by address instead of by cursor.
+
+    This is the backfill path: the go-forward cursor has already passed the
+    payslip that arrived before the feature existed, and moving the cursor
+    backwards would re-import every transaction email in between. Read-only,
+    and it does not touch the cursor.
+    """
+    if not _ADDR_RE.match(sender):
+        # The address is interpolated into an IMAP command; a space or quote
+        # in it would be parsed as further search keys.
+        raise ValueError(f"not a plain email address: {sender!r}")
+    imap = _login(host, user, password)
+    try:
+        _, [meta] = imap.select("INBOX", readonly=True)
+        validity = int(dict(re.findall(rb"(\w+) (\S+)", meta)).get(b"UIDVALIDITY", b"0"))
+        _, [data] = imap.uid("search", None, "FROM", f'"{sender}"')
+        uids = sorted(int(x) for x in data.split())[-limit:]
+        out = []
+        for uid in uids:
+            _, fetched = imap.uid("fetch", str(uid), "(RFC822)")
+            if not fetched or not fetched[0]:
+                continue
+            msg = email.message_from_bytes(fetched[0][1])
+            out.append((uid, *_extract(msg, want_attachments=True)))
         return validity, out
     finally:
         imap.logout()

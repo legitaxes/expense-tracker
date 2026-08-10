@@ -19,110 +19,296 @@
     <h1 id="desk-greet">Hello</h1>
     <div id="desk-date" class="sub"></div>
     <div id="desk-total" class="money">S$0.00</div>
-    <button class="theme-btn" title="Theme">◐</button>
+    <button class="theme-btn" title="Theme" aria-label="Toggle light or dark theme">◐</button>
+    <button class="logout-btn" title="Sign out" aria-label="Sign out">⇥</button>
   </header>
+  <nav id="desk-tabs" aria-label="Sections">
+    <button data-view="home" class="active">Home</button>
+    <button data-view="insights">Insights</button>
+    <button data-view="portfolio">Portfolio</button>
+    <button data-view="pay">Pay</button>
+    <button data-view="cards">Cards</button>
+  </nav>
   <main id="views">
 
     <section id="view-home" class="view">
       <header class="greet">
         <h1 id="greeting">Hello</h1>
         <div id="today-line" class="sub"></div>
-        <button class="theme-btn" title="Theme">◐</button>
+        <button class="theme-btn" title="Theme" aria-label="Toggle light or dark theme">◐</button>
+        <button class="logout-btn" title="Sign out" aria-label="Sign out">⇥</button>
       </header>
-      <div class="card spent-card">
-        <div class="sub spent-head">
-          <button id="hm-prev" class="mnav" title="Previous month">‹</button>
-          <span id="spent-label">Spent this month</span>
-          <button id="hm-next" class="mnav" title="Next month">›</button>
+      <div class="col">
+        <div class="card spent-card">
+          <div class="sub spent-head">
+            <button id="hm-prev" class="mnav" title="Previous month" aria-label="Previous month">‹</button>
+            <span id="spent-label">Spent this month</span>
+            <button id="hm-next" class="mnav" title="Next month" aria-label="Next month">›</button>
+          </div>
+          <div id="month-total" class="big money">S$0.00</div>
+          <div id="spark-wrap" class="chart-wrap"><canvas id="spark"></canvas></div>
         </div>
-        <div id="month-total" class="big money">S$0.00</div>
-        <div id="spark-wrap" class="chart-wrap"><canvas id="spark"></canvas></div>
+        <div class="chips hidden" id="card-filter-row">
+          <select id="card-filter" class="chip" aria-label="Filter by card">
+            <option value="">💳 All cards</option>
+          </select>
+        </div>
+        <div class="card"><div class="section-title">By category</div>
+          <div class="donut-wrap"><canvas id="donut"></canvas>
+            <div class="donut-center"><div id="donut-total" class="money"></div>
+              <div class="sub">this month</div></div>
+          </div></div>
+        <div class="budget-scope sub hidden">Budgets cover all cards</div>
+        <div id="home-budgets" class="rings"></div>
+        <div class="card"><div class="section-title">Daily heatmap</div>
+          <div id="heatmap" class="heatmap"></div></div>
+        <div class="section-title">Goals</div>
+        <div id="goal-list"></div>
+        <div class="card budget-form">
+          <div class="section-title">New goal</div>
+          <div class="row">
+            <input id="goal-name" type="text" placeholder="Name (e.g. Japan)" />
+            <input id="goal-target" type="number" step="1" min="1" placeholder="Target S$" />
+          </div>
+          <div class="row">
+            <input id="goal-date" type="date" />
+            <input id="goal-monthly" type="number" step="1" min="0" placeholder="S$/mo" />
+          </div>
+          <div class="row">
+            <select id="goal-cat"><option value="">Category…</option></select>
+            <select id="goal-pri">
+              <option value="1">⭐ High</option>
+              <option value="2" selected>Normal</option>
+              <option value="3">Low</option>
+            </select>
+          </div>
+          <div class="row">
+            <input id="goal-note" type="text" placeholder="Note (optional)" />
+            <button id="goal-save" class="primary">Create</button>
+          </div>
+        </div>
+        <div id="pending-card" class="card hidden">
+          <div class="section-title">📥 Suggested imports</div>
+          <div id="pending-list" class="txlist"></div>
+        </div>
       </div>
-      <div class="card"><div class="section-title">By category</div>
-        <div class="donut-wrap"><canvas id="donut"></canvas>
-          <div class="donut-center"><div id="donut-total" class="money"></div>
-            <div class="sub">this month</div></div>
-        </div></div>
-      <div id="home-budgets" class="rings"></div>
-      <div id="pending-card" class="card hidden">
-        <div class="section-title">📥 Suggested imports</div>
-        <div id="pending-list" class="txlist"></div>
+      <div class="col" id="home-recent">
+        <div class="section-title">Recent
+          <button class="linkish" data-goto="txns">See all</button></div>
+        <div id="recent-list" class="txlist"></div>
       </div>
-      <div class="section-title">Recent
-        <button class="linkish" data-goto="txns">See all</button></div>
-      <div id="recent-list" class="txlist"></div>
-    </section>
-
-    <section id="view-txns" class="view">
-      <header class="bar"><h1>Transactions</h1></header>
-      <input id="search" type="search" placeholder="Search notes, categories…" />
-      <div id="filter-chip" class="chips hidden"></div>
-      <div id="src-filter" class="chips">
-        <button class="chip sel" data-s="all">All</button>
-        <button class="chip" data-s="auto">✉ Auto</button>
-        <button class="chip" data-s="manual">Manual</button>
-        <input id="min-amt" type="number" min="0" step="1" placeholder="min S$" />
-        <button id="csv-btn" class="chip" title="Download CSV">⬇ CSV</button>
-      </div>
-      <div id="month-chips" class="chips"></div>
-      <div id="tx-list" class="txlist grouped"></div>
     </section>
 
     <section id="view-budgets" class="view">
       <header class="bar"><h1>Budgets</h1></header>
-      <div id="budget-list"></div>
-      <div class="card budget-form">
-        <div class="section-title">Set a budget</div>
-        <div class="row">
-          <select id="budget-cat"></select>
-          <input id="budget-amt" type="number" step="1" min="0" placeholder="S$ / month" />
-          <button id="budget-save" class="primary">Save</button>
+      <div class="col">
+        <div class="section-title desk-only">Budgets</div>
+        <div class="budget-scope sub hidden">Budgets cover all cards</div>
+        <div id="budget-list"></div>
+        <div class="card budget-form">
+          <div class="section-title">Set a budget</div>
+          <div class="row">
+            <select id="budget-cat"></select>
+            <input id="budget-amt" type="number" step="1" min="0" placeholder="S$ / month" />
+            <button id="budget-save" class="primary">Save</button>
+          </div>
         </div>
       </div>
-      <div class="card"><div class="section-title">Daily heatmap</div>
-        <div id="heatmap" class="heatmap"></div></div>
-      <div class="section-title">Goals</div>
-      <div id="goal-list"></div>
-      <div class="card budget-form">
-        <div class="section-title">New goal</div>
-        <div class="row">
-          <input id="goal-name" type="text" placeholder="Name (e.g. Japan)" />
-          <input id="goal-target" type="number" step="1" min="1" placeholder="Target S$" />
-          <button id="goal-save" class="primary">Create</button>
+    </section>
+
+    <section id="view-txns" class="view">
+      <header class="bar"><h1>Transactions</h1></header>
+      <div class="col">
+        <input id="search" type="search" placeholder="Search notes, categories…" />
+        <div id="filter-chip" class="chips hidden"></div>
+        <div id="src-filter" class="chips">
+          <button class="chip sel" data-s="all">All</button>
+          <button class="chip" data-s="auto">✉ Auto</button>
+          <button class="chip" data-s="manual">Manual</button>
+          <input id="min-amt" type="number" min="0" step="1" placeholder="min S$" />
+          <button id="csv-btn" class="chip" title="Download CSV">⬇ CSV</button>
         </div>
+        <div id="month-chips" class="chips"></div>
+        <div id="tx-list" class="txlist grouped"></div>
       </div>
     </section>
 
     <section id="view-insights" class="view">
       <header class="bar"><h1>Insights</h1></header>
-      <div class="card"><div class="section-title"><span>Year</span>
-          <span class="ynav"><button id="yr-prev" class="mnav2">‹</button>
-            <span id="yr-label"></span>
-            <button id="yr-next" class="mnav2">›</button></span></div>
-        <div id="yr-total" class="money big2"></div>
-        <div id="yr-income" class="sub"></div>
-        <div id="yearbars-wrap" class="chart-wrap"><canvas id="yearbars"></canvas></div>
-        <div id="yr-cats" class="pills"></div>
+      <div class="col">
+        <div class="card"><div class="section-title"><span>Year</span>
+            <span class="ynav"><button id="yr-prev" class="mnav2" title="Previous year" aria-label="Previous year">‹</button>
+              <span id="yr-label"></span>
+              <button id="yr-next" class="mnav2" title="Next year" aria-label="Next year">›</button></span></div>
+          <div id="yr-total" class="money big2"></div>
+          <div id="yr-income" class="sub"></div>
+          <div id="yearbars-wrap" class="chart-wrap"><canvas id="yearbars"></canvas></div>
+          <div id="yr-cats" class="pills"></div>
+        </div>
+        <div class="card"><div class="section-title">This month vs last</div>
+          <div id="compare-list" class="pills"></div></div>
+        <div id="callouts" class="tiles"></div>
       </div>
-      <div class="card"><div class="section-title">This month vs last</div>
-        <div id="compare-list" class="pills"></div></div>
-      <div id="callouts" class="tiles"></div>
-      <div class="card"><div class="section-title">Weekly rhythm</div>
-        <div id="rhythm-wrap" class="chart-wrap"><canvas id="rhythm"></canvas></div>
-        <div id="rhythm-cats" class="pills"></div></div>
-      <div class="card"><div class="section-title">Cashflow</div>
-        <div id="cashflow-wrap" class="chart-wrap"><canvas id="cashflow"></canvas></div></div>
-      <div class="card"><div class="section-title">Top merchants</div>
-        <div id="merchant-list"></div></div>
+      <div class="col">
+        <div class="card"><div class="section-title">Weekly rhythm</div>
+          <div id="rhythm-wrap" class="chart-wrap"><canvas id="rhythm"></canvas></div>
+          <div id="rhythm-cats" class="pills"></div></div>
+        <div class="card"><div class="section-title">Cashflow</div>
+          <div id="cashflow-wrap" class="chart-wrap"><canvas id="cashflow"></canvas></div></div>
+        <div class="card"><div class="section-title">Top merchants</div>
+          <div id="merchant-list"></div></div>
+      </div>
+    </section>
+
+    <section id="view-portfolio" class="view">
+      <header class="bar"><h1>Portfolio</h1></header>
+      <div id="pf-banner" class="pf-banner hidden"></div>
+      <div class="col">
+        <div class="card">
+          <div class="sub pf-head">
+            <div id="pf-ccy-toggle" class="seg pf-seg">
+              <button data-ccy="native" class="sel">Native</button>
+              <button data-ccy="sgd">S$</button>
+            </div>
+            <button id="pf-refresh" class="mnav2" title="Refresh" aria-label="Refresh portfolio">↻</button>
+          </div>
+          <div id="pf-total" class="big money">—</div>
+          <div id="pf-pl" class="pf-pl"></div>
+          <div id="pf-sub" class="sub"></div>
+          <div id="pf-updated" class="sub pf-age"></div>
+          <div id="pf-spark-wrap" class="chart-wrap"><canvas id="pf-spark"></canvas></div>
+        </div>
+        <div class="card"><div class="section-title">Allocation</div>
+          <div class="donut-wrap"><canvas id="pf-donut"></canvas>
+            <div class="donut-center"><div id="pf-donut-total" class="money"></div>
+              <div class="sub">holdings</div></div>
+          </div></div>
+      </div>
+      <div class="col">
+        <div class="section-title">Holdings</div>
+        <div id="pf-holdings" class="txlist"></div>
+        <div id="pf-empty" class="card hidden">
+          <div class="sub">Waiting for first sync.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-pay" class="view">
+      <header class="bar"><h1>Pay</h1></header>
+      <div class="col">
+        <div class="card">
+          <div class="sub pf-head">
+            <span class="section-title" id="ps-period-label">Payslip</span>
+            <span class="ynav">
+              <button id="ps-prev" class="mnav2" title="Older payslip" aria-label="Older payslip">‹</button>
+              <button id="ps-next" class="mnav2" title="Newer payslip" aria-label="Newer payslip">›</button>
+            </span>
+          </div>
+          <div id="ps-net" class="big money">—</div>
+          <div id="ps-sub" class="sub"></div>
+          <div id="ps-delta" class="pf-pl"></div>
+          <div id="ps-check" class="sub"></div>
+          <a id="ps-pdf" class="ps-pdf hidden" target="_blank" rel="noopener">📄 Open PDF in new tab</a>
+        </div>
+        <div id="ps-empty" class="card hidden">
+          <div class="sub">No payslips archived yet. They import automatically
+            when one arrives by email.</div>
+        </div>
+        <!-- Same two paths the bot has: scan the mailbox, or hand over a file
+             directly for a month that never arrived by email. -->
+        <div class="card">
+          <div class="sub pf-head">
+            <span class="section-title">Import</span>
+          </div>
+          <div class="chips ps-actions">
+            <button id="ps-scan" class="chip">✉️ Check email</button>
+            <button id="ps-pick" class="chip">📄 Upload PDF</button>
+            <input id="ps-file" type="file" accept="application/pdf,.pdf" class="hidden">
+          </div>
+          <div id="ps-drop" class="ps-drop">Drop a payslip PDF here</div>
+          <div id="ps-import-log" class="sub" role="status" aria-live="polite"></div>
+        </div>
+        <div id="ps-unparsed" class="card hidden">
+          <div class="sub">⚠️ This payslip is archived but could not be read —
+            check <code>PAYSLIP_PDF_PASSWORD</code>. The PDF is still available
+            above.</div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="sub pf-head">
+          <span class="section-title">Breakdown</span>
+          <div id="ps-view-toggle" class="seg pf-seg">
+            <button data-psview="items" class="sel">Extracted</button>
+            <button data-psview="pdf">Original</button>
+            <button data-psview="text">Raw text</button>
+          </div>
+        </div>
+        <div id="ps-items" class="txlist"></div>
+        <!-- Original document, so any extraction mistake can be checked
+             against the source without leaving the page. -->
+        <iframe id="ps-frame" class="ps-frame hidden" title="Original payslip PDF"></iframe>
+        <pre id="ps-raw" class="ps-raw hidden"></pre>
+      </div>
+    </section>
+
+    <section id="view-cards" class="view">
+      <header class="bar"><h1>Cards</h1></header>
+      <div class="col">
+        <div class="card">
+          <div class="section-title">By card <span id="cards-month" class="sub"></span></div>
+          <div id="by-card-wrap" class="chart-wrap"><canvas id="by-card"></canvas></div>
+          <div id="card-pills" class="chips"></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <div class="section-title">Your cards</div>
+          <div id="card-list"></div>
+          <button id="card-add" class="chip">+ Add card</button>
+          <!-- One form for both create and edit: the fields are identical, so
+               a second copy would drift the first time either grows one.
+               #card-bind holds only its placeholder — the senders come from
+               GET /api/cards, so a new email parser becomes bindable with no
+               edit here. -->
+          <form id="card-form" class="budget-form hidden">
+            <div class="section-title" id="card-form-title">New card</div>
+            <div class="row">
+              <input id="card-name" type="text" placeholder="Card name (e.g. Trust debit)" />
+              <select id="card-kind">
+                <option value="credit">Credit</option>
+                <option value="debit" selected>Debit</option>
+                <option value="wallet">Wallet</option>
+                <option value="cash">Cash</option>
+              </select>
+            </div>
+            <div class="row">
+              <input id="card-last4" type="text" inputmode="numeric" maxlength="4"
+                     placeholder="Last 4 (optional)" />
+              <input id="card-match" type="text"
+                     placeholder="Matches text like &quot;trust link&quot; (optional)" />
+            </div>
+            <div class="row">
+              <select id="card-bind">
+                <option value="">Don't attribute any sender</option>
+              </select>
+            </div>
+            <div class="row">
+              <span class="flex"></span>
+              <button type="button" id="card-cancel">Cancel</button>
+              <button type="submit" id="card-save" class="primary">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </section>
 
   </main>
 
   <!-- Add flow: full view on mobile, modal on desktop -->
-  <div id="add-overlay" class="overlay hidden">
+  <div id="add-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="add-title">
     <section id="view-add" class="view">
       <header class="bar">
-        <button id="add-close" class="linkish">✕</button><h1>Add expense</h1>
+        <button id="add-close" class="linkish" aria-label="Close">✕</button><h1 id="add-title">Add expense</h1>
       </header>
       <div id="add-amount" class="amount-display money">S$0.00</div>
       <div id="add-type" class="seg">
@@ -132,21 +318,22 @@
       <div id="add-cats" class="cat-grid"></div>
       <input id="add-note" type="text" placeholder="Note (e.g. kopi at hawker)" />
       <div id="pad" class="pad">
-        <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="back">⌫</button>
-        <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button><button data-k="clear">C</button>
-        <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button><button id="add-save" class="ok" data-k="ok">✓</button>
+        <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="back" aria-label="Backspace">⌫</button>
+        <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button><button data-k="clear" aria-label="Clear">C</button>
+        <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button><button id="add-save" class="ok" data-k="ok" aria-label="Save expense">✓</button>
         <button data-k="dot" class="span2">.</button><button data-k="0">0</button>
       </div>
     </section>
   </div>
 
   <!-- Edit sheet -->
-  <div id="sheet-overlay" class="overlay hidden">
+  <div id="sheet-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
     <div id="sheet" class="sheet">
-      <div class="section-title">Edit transaction</div>
+      <div class="section-title" id="sheet-title">Edit transaction</div>
       <label>Amount (S$)<input id="edit-amt" type="number" step="0.01" min="0" /></label>
       <label>Note<input id="edit-note" type="text" /></label>
       <div id="edit-links" class="edit-links hidden"></div>
+      <div id="edit-link" class="edit-link hidden"></div>
       <div id="edit-cats" class="cat-grid small"></div>
       <div class="row">
         <button id="edit-delete" class="danger">Delete</button>
@@ -157,15 +344,46 @@
     </div>
   </div>
 
-  <nav id="nav">
+  <!-- Card picker, opened by the 💳 chip on a transaction row. Its own sheet
+       rather than a section of the edit sheet: the chip is a one-tap
+       correction, and it is the correction that teaches the importer. -->
+  <div id="card-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="card-pick-title">
+    <div class="sheet">
+      <div class="section-title" id="card-pick-title">Which card?</div>
+      <div id="card-pick-list"></div>
+      <div class="row"><span class="flex"></span>
+        <button id="card-pick-cancel" class="primary">Cancel</button></div>
+    </div>
+  </div>
+
+  <div id="keys-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="keys-title">
+    <div class="sheet">
+      <div class="section-title" id="keys-title">Keyboard shortcuts</div>
+      <dl class="keys">
+        <dt><kbd>1</kbd>–<kbd>7</kbd></dt><dd>Switch tab</dd>
+        <dt><kbd>n</kbd></dt><dd>Add an expense</dd>
+        <dt><kbd>/</kbd></dt><dd>Search transactions</dd>
+        <dt><kbd>Enter</kbd></dt><dd>Open the focused row</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Close</dd>
+        <dt><kbd>?</kbd></dt><dd>This list</dd>
+      </dl>
+      <div class="row"><span class="flex"></span>
+        <button id="keys-close" class="primary">Close</button></div>
+    </div>
+  </div>
+
+  <nav id="nav" aria-label="Main">
     <button data-view="home" class="active"><span>⌂</span>Home</button>
     <button data-view="txns"><span>≡</span>Transactions</button>
     <button data-view="budgets"><span>◔</span>Budgets</button>
     <button data-view="insights"><span>✦</span>Insights</button>
+    <button data-view="portfolio"><span>◈</span>Portfolio</button>
+    <button data-view="pay"><span>🧾</span>Pay</button>
+    <button data-view="cards"><span>💳</span>Cards</button>
   </nav>
-  <button id="fab" title="Add expense">＋</button>
+  <button id="fab" title="Add expense" aria-label="Add expense">＋</button>
   <div id="hm-tip" class="hm-tip"></div>
-  <div id="toast" class="toast"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </div>
 <script src="/app.js"></script>
 </body>

@@ -6,68 +6,73 @@
   src:url(/vendor/nunito-700.woff2) format('woff2')}
 @font-face{font-family:'Nunito';font-weight:800;font-display:swap;
   src:url(/vendor/nunito-800.woff2) format('woff2')}
+/* Each token declares both themes once via light-dark(); which side applies is
+   driven purely by color-scheme (auto follows the OS, data-theme pins it). */
 :root{
-  --primary:#6750A4; --on-primary:#FFFFFF;
-  --primary-container:#EADDFF; --on-primary-container:#21005D;
-  --bg:#F7F4FC; --surface:#FFFFFF; --surface-2:#F0ECF8; --surface-3:#E8E1F3;
-  --on-surface:#1C1B21; --on-surface-2:#5B5666; --outline:#CBC4D6;
-  --good:#3E9B4F; --warn:#D98E1F; --bad:#D9483B;
-  --hero-a:#6750A4; --hero-b:#7E63C4;
+  color-scheme:light dark;
+  --primary:light-dark(#6750A4,#D0BCFF); --on-primary:light-dark(#FFFFFF,#381E72);
+  --primary-container:light-dark(#EADDFF,#4F378B);
+  --on-primary-container:light-dark(#21005D,#EADDFF);
+  --bg:light-dark(#F7F4FC,#161322); --surface:light-dark(#FFFFFF,#1F1B2E);
+  --surface-2:light-dark(#F0ECF8,#27223B); --surface-3:light-dark(#E8E1F3,#302947);
+  --on-surface:light-dark(#1C1B21,#E8E6F2); --on-surface-2:light-dark(#5B5666,#A29DB8);
+  --outline:light-dark(#CBC4D6,#4C4566);
+  --good:light-dark(#3E9B4F,#7CC98A); --warn:light-dark(#D98E1F,#E8B45E);
+  --bad:light-dark(#D9483B,#EF8A80);
+  --hero-a:light-dark(#6750A4,#D0BCFF); --hero-b:light-dark(#7E63C4,#B79BFF);
   --font-display:'Nunito',Roboto,"Segoe UI",system-ui,sans-serif;
-  --shadow:0 1px 2px rgba(27,29,38,.08),0 4px 14px rgba(27,29,38,.08);
-  --c-food-bg:#FFE3C2;          --c-food-fg:#8A4B00;
-  --c-groceries-bg:#D6F0CE;     --c-groceries-fg:#2E6B24;
-  --c-transport-bg:#CFE4FF;     --c-transport-fg:#1B5CA8;
-  --c-shopping-bg:#FFD9E8;      --c-shopping-fg:#A82562;
-  --c-bills-bg:#C9F0EA;         --c-bills-fg:#0F6B5F;
-  --c-health-bg:#FFD9D4;        --c-health-fg:#A83A2C;
-  --c-entertainment-bg:#E5DBFF; --c-entertainment-fg:#5E3FA6;
-  --c-travel-bg:#F5E9BE;        --c-travel-fg:#7A6210;
-  --c-other-bg:#E4E6EE;         --c-other-fg:#4C5265;
+  --shadow:0 1px 2px light-dark(rgba(27,29,38,.08),rgba(0,0,0,.4)),
+           0 4px 14px light-dark(rgba(27,29,38,.08),rgba(0,0,0,.35));
+  --c-food-bg:light-dark(#FFE3C2,#4A3012);          --c-food-fg:light-dark(#8A4B00,#FFD9A8);
+  --c-groceries-bg:light-dark(#D6F0CE,#24401F);     --c-groceries-fg:light-dark(#2E6B24,#B7E3AA);
+  --c-transport-bg:light-dark(#CFE4FF,#1B3552);     --c-transport-fg:light-dark(#1B5CA8,#A9CDFF);
+  --c-shopping-bg:light-dark(#FFD9E8,#4A2135);      --c-shopping-fg:light-dark(#A82562,#FFB3D2);
+  --c-bills-bg:light-dark(#C9F0EA,#16403A);         --c-bills-fg:light-dark(#0F6B5F,#9FE0D6);
+  --c-health-bg:light-dark(#FFD9D4,#47231F);        --c-health-fg:light-dark(#A83A2C,#FFB4A8);
+  --c-entertainment-bg:light-dark(#E5DBFF,#322550); --c-entertainment-fg:light-dark(#5E3FA6,#CDBBFF);
+  --c-travel-bg:light-dark(#F5E9BE,#453A12);        --c-travel-fg:light-dark(#7A6210,#EBD98A);
+  --c-other-bg:light-dark(#E4E6EE,#2A2D3A);         --c-other-fg:light-dark(#4C5265,#C3C8D9);
 }
-/* KEEP IN SYNC: this block appears twice — auto (media query) + manual override */
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --primary:#D0BCFF; --on-primary:#381E72;
-    --primary-container:#4F378B; --on-primary-container:#EADDFF;
-    --bg:#161322; --surface:#1F1B2E; --surface-2:#27223B; --surface-3:#302947;
-    --on-surface:#E8E6F2; --on-surface-2:#A29DB8; --outline:#4C4566;
-    --good:#7CC98A; --warn:#E8B45E; --bad:#EF8A80;
-    --hero-a:#D0BCFF; --hero-b:#B79BFF;
-    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
-    --c-food-bg:#4A3012;          --c-food-fg:#FFD9A8;
-    --c-groceries-bg:#24401F;     --c-groceries-fg:#B7E3AA;
-    --c-transport-bg:#1B3552;     --c-transport-fg:#A9CDFF;
-    --c-shopping-bg:#4A2135;      --c-shopping-fg:#FFB3D2;
-    --c-bills-bg:#16403A;         --c-bills-fg:#9FE0D6;
-    --c-health-bg:#47231F;        --c-health-fg:#FFB4A8;
-    --c-entertainment-bg:#322550; --c-entertainment-fg:#CDBBFF;
-    --c-travel-bg:#453A12;        --c-travel-fg:#EBD98A;
-    --c-other-bg:#2A2D3A;         --c-other-fg:#C3C8D9;
-  }
-}
-/* KEEP IN SYNC: this block appears twice — auto (media query) + manual override */
-:root[data-theme="dark"]{
-  --primary:#D0BCFF; --on-primary:#381E72;
-  --primary-container:#4F378B; --on-primary-container:#EADDFF;
-  --bg:#161322; --surface:#1F1B2E; --surface-2:#27223B; --surface-3:#302947;
-  --on-surface:#E8E6F2; --on-surface-2:#A29DB8; --outline:#4C4566;
-  --good:#7CC98A; --warn:#E8B45E; --bad:#EF8A80;
-  --hero-a:#D0BCFF; --hero-b:#B79BFF;
-  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
-  --c-food-bg:#4A3012;          --c-food-fg:#FFD9A8;
-  --c-groceries-bg:#24401F;     --c-groceries-fg:#B7E3AA;
-  --c-transport-bg:#1B3552;     --c-transport-fg:#A9CDFF;
-  --c-shopping-bg:#4A2135;      --c-shopping-fg:#FFB3D2;
-  --c-bills-bg:#16403A;         --c-bills-fg:#9FE0D6;
-  --c-health-bg:#47231F;        --c-health-fg:#FFB4A8;
-  --c-entertainment-bg:#322550; --c-entertainment-fg:#CDBBFF;
-  --c-travel-bg:#453A12;        --c-travel-fg:#EBD98A;
-  --c-other-bg:#2A2D3A;         --c-other-fg:#C3C8D9;
-}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark}
+/* app.js feeds these tokens to Chart.js via getComputedStyle. Registration makes
+   them compute to a resolved color; unregistered they'd return the literal
+   "light-dark(...)" text, which canvas can't parse. */
+@property --primary{syntax:'<color>';inherits:true;initial-value:#6750A4}
+@property --c-food-fg{syntax:'<color>';inherits:true;initial-value:#8A4B00}
+@property --c-groceries-fg{syntax:'<color>';inherits:true;initial-value:#2E6B24}
+@property --c-transport-fg{syntax:'<color>';inherits:true;initial-value:#1B5CA8}
+@property --c-shopping-fg{syntax:'<color>';inherits:true;initial-value:#A82562}
+@property --c-bills-fg{syntax:'<color>';inherits:true;initial-value:#0F6B5F}
+@property --c-health-fg{syntax:'<color>';inherits:true;initial-value:#A83A2C}
+@property --c-entertainment-fg{syntax:'<color>';inherits:true;initial-value:#5E3FA6}
+@property --c-travel-fg{syntax:'<color>';inherits:true;initial-value:#7A6210}
+@property --c-other-fg{syntax:'<color>';inherits:true;initial-value:#4C5265}
+@property --good{syntax:'<color>';inherits:true;initial-value:#3E9B4F}
+@property --bad{syntax:'<color>';inherits:true;initial-value:#D9483B}
+@property --surface{syntax:'<color>';inherits:true;initial-value:#FFFFFF}
 .greet{position:relative}
-.greet .theme-btn{position:absolute;top:12px;right:2px;font-size:20px}
-#desk-head .theme-btn{font-size:20px}
+/* Theme sits INBOARD of sign-out (the larger `right`) so that DOM order --
+   theme, then logout, as both headers are written -- matches visual order, and
+   therefore tab order. Putting the new button to the left instead would have
+   left the two reversed on screen. */
+/* 44x44 is the touch floor, and it is what makes the focus ring legible on a
+   20px glyph. The box grows; the glyph does not -- flex-centring keeps it
+   where it was. The two .greet offsets are re-spaced from 32/2 to 44/0 to
+   match the wider boxes; theme must stay the LARGER `right` (see above). */
+.theme-btn,.logout-btn,.mnav,.mnav2{width:44px;height:44px;
+  display:inline-flex;align-items:center;justify-content:center;font-size:20px}
+.greet .theme-btn{position:absolute;top:0;right:44px}
+/* The generic `button` rule below already clears background/border/padding and
+   sets the cursor, and the shared 44x44 rule above sets the box, so only colour
+   and placement are worth restating. .greet positions its controls absolutely
+   (it is their only position:relative ancestor), so this needs a slot of its
+   own or it lands in normal flow under the greeting; #desk-head is a flex row
+   whose .sub has flex:1, which parks both buttons at the right edge without
+   help. */
+.logout-btn{color:var(--on-surface-2)}
+.logout-btn:hover{color:var(--on-surface)}
+.greet .logout-btn{position:absolute;top:0;right:0}
 
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
@@ -77,6 +82,10 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;pad
 input,select{font:inherit;color:var(--on-surface);background:var(--surface);
   border:1px solid var(--outline);border-radius:14px;padding:10px 14px;width:100%;outline:none}
 input:focus,select:focus{border-color:var(--primary)}
+/* Keyboard focus was invisible: the only focus rule in this file was the
+   input border above. :focus-visible, not :focus, so a pointer click does
+   not leave a ring behind. The outline follows each element's own radius. */
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 .money{font-variant-numeric:tabular-nums}
 .sub{color:var(--on-surface-2);font-size:13px}
 .flex{flex:1}
@@ -86,6 +95,10 @@ input:focus,select:focus{border-color:var(--primary)}
   padding:16px 16px 96px}
 .view{display:none;flex-direction:column;gap:14px}
 .view.active{display:flex}
+/* Wrappers exist only to form desktop columns. display:contents makes them
+   generate no box on mobile, so cards lay out as direct flex children of the
+   view exactly as they did before columns existed. */
+.col{display:contents}
 
 /* headers — display face carries the personality */
 .greet h1,.bar h1{font-family:var(--font-display);font-size:24px;font-weight:800;margin:0}
@@ -110,8 +123,7 @@ input:focus,select:focus{border-color:var(--primary)}
 .spent-card .sub{color:var(--on-primary);opacity:.85}
 .spent-head{display:flex;align-items:center;gap:8px}
 .spent-head span{flex:1;text-align:center}
-.mnav{color:var(--on-primary);opacity:.8;font-size:20px;line-height:1;
-  width:28px;height:28px;border-radius:50%}
+.mnav{color:var(--on-primary);opacity:.8;line-height:1;border-radius:50%}
 .mnav:active{background:rgba(255,255,255,.18)}
 .spent-card .big{font-family:var(--font-display);font-size:40px;font-weight:800;margin:2px 0 8px}
 /* Chart.js sizes its render surface from the canvas's PARENT — give each chart a
@@ -124,6 +136,8 @@ input:focus,select:focus{border-color:var(--primary)}
 #cashflow-wrap{height:220px}
 #rhythm-wrap{height:140px}
 #yearbars-wrap{height:260px}
+#pf-spark-wrap{height:56px}
+#by-card-wrap{height:220px}
 
 /* budget pills on home */
 .pills{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
@@ -150,6 +164,11 @@ input:focus,select:focus{border-color:var(--primary)}
 .tx .amt{font-weight:700;white-space:nowrap}
 .auto{font-size:10px;background:var(--surface-3);color:var(--on-surface-2);
   border-radius:6px;padding:1px 5px;margin-left:4px}
+/* The card chip is an .auto badge that happens to be clickable — it opens the
+   picker rather than the row's edit sheet, so it needs the pointer cue. */
+.card-chip{cursor:pointer;white-space:nowrap}
+.card-chip:hover,.card-chip:focus-visible{background:var(--primary-container);
+  color:var(--on-primary-container)}
 .day{display:flex;justify-content:space-between;font-size:12px;font-weight:700;
   color:var(--on-surface-2);padding:8px 4px 0;text-transform:uppercase;letter-spacing:.04em}
 .empty{color:var(--on-surface-2);text-align:center;padding:24px 0}
@@ -161,6 +180,17 @@ input:focus,select:focus{border-color:var(--primary)}
 .chip.sel{background:var(--primary-container);color:var(--on-primary-container);
   border-color:transparent}
 #min-amt{width:96px;flex:0 0 auto;padding:6px 12px;border-radius:999px;font-size:13px}
+
+/* The card filter reuses the .chip pill so it reads as one of the app's
+   filters rather than a form control. appearance:none drops the native
+   arrow; the two gradients redraw it in currentColor, so it inverts along
+   with the text when .sel paints the pill primary. */
+select.chip{-webkit-appearance:none;appearance:none;padding-right:30px;
+  max-width:100%;text-overflow:ellipsis;
+  background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),
+    linear-gradient(135deg,currentColor 50%,transparent 50%);
+  background-position:calc(100% - 15px) 53%,calc(100% - 11px) 53%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat}
 
 /* budgets */
 .bcard{background:var(--surface);border-radius:18px;padding:14px 16px;
@@ -176,10 +206,24 @@ input:focus,select:focus{border-color:var(--primary)}
 .bar-fill.warn{background:var(--warn)}
 .bar-fill.over{background:var(--bad)}
 .bcard .nums{display:flex;justify-content:space-between;font-size:12px;color:var(--on-surface-2)}
+.nums.warn{color:var(--warn)}
 .budget-form .row{display:flex;gap:8px;margin-top:10px}
 .budget-form select{flex:1.4}
 .budget-form input{flex:1}
 .budget-form button{flex:0 0 auto}
+
+/* card list rows — the transaction-row shape one surface up, since these sit
+   INSIDE a .card rather than on the page background. The 🗑 is a real button,
+   so it stays keyboard-reachable and the row's Enter/Space handler bails on
+   it before reaching the row. */
+.crow{display:flex;align-items:center;gap:12px;background:var(--surface-2);
+  border-radius:14px;padding:8px 12px;margin-bottom:8px;cursor:pointer}
+.crow:hover,.crow:focus-visible{background:var(--surface-3)}
+.crow .ico{font-size:19px;flex:0 0 auto}
+.crow .mid{flex:1;min-width:0}
+.crow .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crow .s{font-size:12px;color:var(--on-surface-2)}
+#card-form{margin-top:12px}
 
 /* category colors (class = cat-<lowercased category>) */
 .cat-food .ico,.dot.cat-food{background:var(--c-food-bg);color:var(--c-food-fg)}
@@ -193,7 +237,7 @@ input:focus,select:focus{border-color:var(--primary)}
 .cat-other .ico,.dot.cat-other{background:var(--c-other-bg);color:var(--c-other-fg)}
 
 /* add flow */
-/* ponytail: Nunito only on hero/display numbers — list .money stays on the
+/* Nunito only on hero/display numbers — list .money stays on the
    system stack, whose tabular-nums keep day totals aligned */
 .amount-display{font-family:var(--font-display);font-size:44px;font-weight:800;
   text-align:center;padding:12px 0}
@@ -218,6 +262,7 @@ input:focus,select:focus{border-color:var(--primary)}
   font-size:11px;font-weight:600;color:var(--on-surface-2);flex:1 1 0;min-width:0}
 #nav button span{font-size:18px;line-height:1}
 #nav button.active{color:var(--primary)}
+#desk-tabs{display:none}
 #fab{position:fixed;right:calc(50% - 250px);bottom:84px;width:58px;height:58px;
   border-radius:19px;background:var(--primary);color:var(--on-primary);font-size:28px;
   box-shadow:var(--shadow);z-index:21}
@@ -256,9 +301,38 @@ button.danger{color:var(--bad);font-weight:700;padding:10px 6px}
   #desk-head .sub{flex:1}
   #desk-head .money{font-family:var(--font-display);font-size:22px;font-weight:800}
   .greet,.bar{display:none}
-  #views{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:24px;align-items:start}
-  .view{display:flex !important}
-  #view-insights{grid-column:1 / -1} /* analytics view gets a full-width row below the 3 main panels */
+  #desk-tabs{display:flex;gap:4px;padding:0 2px;margin-bottom:18px;
+    border-bottom:1px solid var(--surface-3)}
+  #desk-tabs button{padding:10px 16px;font-size:14px;font-weight:600;
+    color:var(--on-surface-2);border-bottom:2px solid transparent;
+    margin-bottom:-1px}
+  #desk-tabs button:hover{color:var(--on-surface)}
+  #desk-tabs button.active{color:var(--primary);border-bottom-color:var(--primary)}
+  #views{display:grid;gap:24px;align-items:start}
+  #views.tab-home{grid-template-columns:1fr 1fr 1.4fr}
+  #views.tab-insights,#views.tab-portfolio,#views.tab-pay,#views.tab-cards{
+    grid-template-columns:1fr 1fr}
+  .view.active{display:contents}
+  /* min-width:0 — grid items default to min-width:auto, which lets a wide
+     chart or a long merchant name blow out the column instead of shrinking. */
+  .col{display:flex;flex-direction:column;gap:14px;min-width:0}
+  /* Transactions is Home's third column on desktop. The two sections are
+     adjacent siblings, so this needs no JS — show() stays unaware of the
+     merge and cannot drift out of sync with the layout. */
+  #view-home.active ~ #view-txns{display:contents}
+  /* Budgets rides the same mechanism: no desktop tab, but its single
+     column becomes part of Home's grid. It sits BEFORE #view-txns in the
+     markup because grid columns follow DOM order. */
+  #view-home.active ~ #view-budgets{display:contents}
+  #home-recent{display:none}
+  /* Same reason as #home-recent above: the merge puts Home's own copy of the
+     "Budgets cover all cards" note and #view-budgets' copy in adjacent
+     columns of one grid, so with a filter on the user reads it twice. Hide
+     the Home duplicate and keep the one in the dedicated Budgets column,
+     which carries the .desk-only "Budgets" heading. On mobile the two are
+     separate tabs and both are needed -- Home has its own rings there. */
+  #view-home .budget-scope{display:none}
+  #pf-banner{grid-column:1 / -1}
   #fab{right:36px;bottom:36px}
   #sheet-overlay{align-items:center}
   .sheet{border-radius:24px}
@@ -317,6 +391,17 @@ button.danger{color:var(--bad);font-weight:700;padding:10px 6px}
 .edit-links{border-top:1px solid var(--surface-3);margin-top:8px;padding-top:8px}
 .link-row{display:flex;justify-content:space-between;font-size:13px;padding:2px 0}
 .link-row.net{font-weight:800;border-top:1px dashed var(--surface-3);margin-top:4px}
+/* Candidate picker inside the edit sheet. .link-pick is a real <button>, so it
+   inherits the generic reset and is keyboard-reachable for free — which the
+   accessibility pass will want. Grid, not flex: the icon and amount columns
+   stay aligned down the list however long a note is. */
+.edit-link{border-top:1px solid var(--surface-3);margin-top:8px;padding-top:8px}
+.link-pick{display:grid;grid-template-columns:auto 1fr auto;gap:8px;
+  align-items:center;width:100%;text-align:left;padding:8px 6px;border-radius:10px}
+.link-pick:hover,.link-pick:focus-visible{background:var(--surface-2)}
+.lp-note{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+.lp-amt{font-size:13px;color:var(--on-surface-2)}
+.link-undo{margin-top:8px;color:var(--bad);font-weight:700;padding:6px 0}
 
 /* ---- widgets (v4) ---- */
 .donut-wrap{position:relative;height:190px} /* same fixed-height-wrapper pattern as .chart-wrap */
@@ -344,7 +429,7 @@ button.danger{color:var(--bad);font-weight:700;padding:10px 6px}
 /* year view */
 .big2{font-family:var(--font-display);font-size:26px;font-weight:800}
 .ynav{display:flex;align-items:center;gap:6px;font-weight:700}
-.mnav2{width:26px;height:26px;border-radius:50%;font-size:17px;line-height:1;color:var(--on-surface-2)}
+.mnav2{border-radius:50%;line-height:1;color:var(--on-surface-2)}
 .mnav2:hover{background:var(--surface-3)}
 
 /* pending imports + budget tools */
@@ -359,6 +444,12 @@ button.danger{color:var(--bad);font-weight:700;padding:10px 6px}
 @keyframes view-in-r{from{opacity:0;transform:translateX(24px)}}
 @keyframes view-in-l{from{opacity:0;transform:translateX(-24px)}}
 @media (max-width:1099px){
+  /* Hidden on mobile rather than revealed on desktop: .desk-only lands on a
+     .section-title, which is display:flex, and a `display:block` reveal rule
+     would silently clobber that. Hiding never has to name a display mode.
+     On mobile the <h1>Budgets</h1> page header already names the tab; on
+     desktop that header is hidden by .bar and the column needs a label. */
+  .desk-only{display:none}
   .view.view-in-right{animation:view-in-r .2s cubic-bezier(.2,0,0,1)}
   .view.view-in-left{animation:view-in-l .2s cubic-bezier(.2,0,0,1)}
 }
@@ -367,7 +458,7 @@ button.danger{color:var(--bad);font-weight:700;padding:10px 6px}
 
 /* rows breathe: staggered entrance fade-up (JS sets --i per child) + hover lift */
 @keyframes rowin{from{opacity:0;transform:translateY(8px)}}
-.txlist .tx,.bcard,.pill,.tile,.mcard{animation:rowin .28s ease backwards;
+.txlist .tx,.bcard,.pill,.tile,.mcard,.crow{animation:rowin .28s ease backwards;
   animation-delay:calc(var(--i,0)*30ms)}
 .heatmap>div{animation:rowin .2s ease backwards;animation-delay:calc(var(--i,0)*8ms)}
 .tx{transition:transform .12s ease,box-shadow .12s ease}
@@ -397,3 +488,70 @@ button.danger{color:var(--bad);font-weight:700;padding:10px 6px}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation:none !important;transition:none !important}
 }
+
+/* ---- portfolio ---- */
+.pf-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.pf-seg{flex:1}
+/* .mnav is for the hero card and paints itself --on-primary; on a plain
+   --surface card that is white-on-white in light mode and near-black-on-black
+   in dark. .mnav2 is the surface-safe icon button; --primary marks it as the
+   one thing on this card that does something. */
+#pf-refresh{color:var(--primary);font-size:19px}
+#pf-refresh:disabled{opacity:.5}
+.pf-age{opacity:.75;font-size:11px;margin-top:2px}
+.ps-pdf{display:inline-block;margin-top:12px;font-size:14px;font-weight:600;
+  color:var(--primary);text-decoration:none}
+.ps-pdf:hover{text-decoration:underline}
+.ps-ok{color:var(--good);font-weight:600}
+.ps-bad{color:var(--bad);font-weight:600}
+/* Tall enough to read a payslip page without scrolling the frame itself. */
+.ps-frame{width:100%;height:78vh;min-height:520px;border:0;border-radius:16px;
+  background:var(--surface)}
+.ps-actions{margin-bottom:10px}
+/* Dashed target, so it reads as "drop here" without a border that competes
+   with the cards around it. Hidden on touch, where there is nothing to drag. */
+.ps-drop{border:2px dashed var(--outline);border-radius:16px;padding:18px;
+  text-align:center;font-size:13px;color:var(--on-surface-2)}
+.ps-drop.over{border-color:var(--primary);color:var(--primary);
+  background:color-mix(in srgb,var(--primary) 8%,transparent)}
+@media (hover:none){.ps-drop{display:none}}
+#ps-import-log{margin-top:10px;white-space:pre-line}
+.ps-raw{white-space:pre-wrap;word-break:break-word;font-size:12px;
+  background:var(--surface);color:var(--on-surface);padding:14px;
+  border-radius:16px;max-height:78vh;overflow:auto;margin:0}
+.pf-pl{font-weight:700;font-size:14px;margin-top:2px}
+.pf-pl.up{color:var(--good)}
+.pf-pl.down{color:var(--bad)}
+.pf-banner{background:color-mix(in srgb,var(--warn) 18%,transparent);
+  border-radius:12px;padding:10px 12px;font-size:12px;font-weight:600;
+  margin-bottom:12px}
+.pf-banner.error{background:color-mix(in srgb,var(--bad) 18%,transparent)}
+.pf-row{display:flex;align-items:center;gap:10px;padding:10px 12px}
+.pf-row .pf-sym{font-weight:700}
+.pf-row .pf-name{font-size:11px;color:var(--on-surface-2)}
+.pf-row .pf-qty{font-size:11px;color:var(--on-surface-2)}
+.pf-row .pf-val{margin-left:auto;text-align:right}
+.pf-row .pf-chg{font-size:11px;font-weight:700}
+.pf-row .pf-chg.up{color:var(--good)}
+.pf-row .pf-chg.down{color:var(--bad)}
+#pf-ccy-toggle button[disabled]{opacity:.4}
+
+/* --- login / signup ------------------------------------------------------ */
+.auth-wrap{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px}
+.auth-card{width:100%;max-width:360px;display:flex;flex-direction:column;gap:12px}
+.auth-card h1{font-family:var(--font-display);font-size:26px;font-weight:800;margin:0}
+.auth-card label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--on-surface-2)}
+.auth-card input{padding:11px 12px;font-size:15px}
+.auth-card button.primary{margin-top:4px;padding:12px}
+.auth-card .linkish{align-self:center}
+/* Tinted-bg + dark-fg pair, matching the --c-*-bg/--c-*-fg category chips.
+   White on var(--bad) is 2.4:1 in dark mode (--bad is #EF8A80 there) and 4.25:1
+   in light -- both under 4.5:1 at 13px, on the one element the user has to read
+   to understand why their sign-in failed. */
+.auth-error{background:light-dark(#FDECEA,#4A2320);color:light-dark(#8A1F16,#FFB4A8);
+  border-radius:10px;padding:9px 11px;font-size:13px}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;margin:4px 0 12px}
+.keys dt{text-align:right}
+.keys dd{margin:0;color:var(--on-surface-2)}
+kbd{font:inherit;font-size:13px;background:var(--surface-3);border-radius:6px;
+  padding:2px 7px;border:1px solid var(--outline)}
