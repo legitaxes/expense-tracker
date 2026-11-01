@@ -5,8 +5,7 @@ spending the moment it happens, **bank/merchant emails are auto-imported**, and 
 **mobile-first web dashboard** (PWA) does the analysis. Two small containers, one
 SQLite file, no cloud services.
 
-> Built for one user, one currency (SGD), one timezone (SGT) — on purpose.
-> It replaces a commercial expense app with something that ingests my actual
+> It replaces a commercial expense app with something that ingests your actual
 > bank alerts and answers on my own hardware.
 
 ![Web dashboard](image/dashboard.png)
@@ -44,7 +43,7 @@ self-hosted replacement for it (see the CSV importer below).
 - **Insights dashboard** — month-over-month comparison, merchant breakdown,
   spending heatmap, cashflow, year view with per-category drill-down, weekly
   rhythm — Material You-styled vanilla JS + Chart.js, light/dark, installable PWA.
-- **Portfolio** (optional) — read-only Tiger Brokers holdings with an SGD toggle
+- **Portfolio** (optional) — read-only Tiger Brokers holdings with an toggle
   and history, cache-first so the dashboard never waits on the broker API.
 - **Payslip archive** (optional) — if your payroll provider mails you a
   password-protected payslip PDF, it is decrypted, OCR'd, archived and broken
@@ -84,10 +83,10 @@ physical card can learn as several instruments when senders print it differently
 colliding. Deleting a card archives it when transactions reference it. Home has a
 card filter that scopes the donut, month total, sparkline, heatmap and list.
 
-**Portfolio (optional, Tiger Brokers).** Read-only holdings, totals, an SGD
+**Portfolio (optional, Tiger Brokers).** Read-only holdings, totals, an 
 toggle and a history chart. Cache-first: the bot polls on a timer and writes to
 SQLite; the dashboard only reads that cache, with a manual refresh button that
-runs the same fetch. The SGD rate is stored *per snapshot*, so history reflects
+runs the same fetch. The  rate is stored *per snapshot*, so history reflects
 the rate at the time. Leaving `TIGER_ID` empty disables the feature entirely —
 hidden tab, no outbound calls.
 
@@ -245,7 +244,6 @@ stay go-forward with no overlap.
 
 ## Conventions & limitations
 
-- SGD only, integer cents, timestamps are local SGT ISO strings.
 - Single-household by design — one chat ID, one Gmail account. The web login
   authenticates, but all accounts see the same data.
 - Categories + alert thresholds: `app/config.py`; keyword rules: `app/categories.py`.
